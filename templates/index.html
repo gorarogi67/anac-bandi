@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANAC Bandi</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#1a1a1a}
+        .header{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:18px 32px}
+        .header-inner{max-width:1440px;margin:auto;display:flex;align-items:center;justify-content:space-between}
+        .header h1{font-size:20px;font-weight:700}.header p{font-size:12px;opacity:.75;margin-top:3px}
+        .container{max-width:1440px;margin:16px auto;padding:0 16px}
+        .card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr)}
+        .stat{text-align:center;padding:14px;border-right:1px solid #eee}.stat:last-child{border:none}
+        .stat-num{font-size:26px;font-weight:700}.stat-label{font-size:12px;color:#888;margin-top:2px}
+        .filters{padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+        .fg{display:flex;flex-direction:column;gap:3px}
+        .fg label{font-size:11px;color:#888;font-weight:600;text-transform:uppercase}
+        input,select{border:1px solid #d1d5db;border-radius:6px;padding:7px 10px;font-size:13px}
+        input:focus,select:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1)}
+        .kw-area{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+        .kw-chip{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600}
+        .kw-chip .x{cursor:pointer;font-size:14px;opacity:.6}.kw-chip .x:hover{opacity:1}
+        .kw-preset{background:#f3f4f6;color:#374151;border:1px dashed #ccc;padding:4px 10px;border-radius:14px;font-size:12px;cursor:pointer}
+        .kw-preset:hover{background:#e5e7eb}
+        #kwInput{border:none;outline:none;min-width:120px;font-size:13px;padding:4px 0}
+        .btn{padding:7px 14px;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;border:none;transition:all .1s}
+        .btn-out{background:#fff;color:#555;border:1px solid #d1d5db}.btn-out:hover{background:#f9fafb}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th{position:sticky;top:0;background:#f8fafc;padding:9px 10px;text-align:left;font-size:11px;color:#888;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:2px solid #e5e7eb}
+        th:hover{background:#eef2ff;color:#2563eb}
+        td{padding:8px 10px;border-bottom:1px solid #f3f4f6;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        tr:hover td{background:#f8fafc}tr{cursor:pointer}
+        .badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+        .bg{background:#d1fae5;color:#065f46}.bb{background:#dbeafe;color:#1e40af}.bgr{background:#f3f4f6;color:#666}
+        .paging{display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-top:10px}
+        .paging-info{font-size:12px;color:#888}
+        .pg{padding:5px 10px;border:1px solid #d1d5db;border-radius:5px;background:#fff;cursor:pointer;font-size:12px;margin:0 1px}
+        .pg:hover{background:#f3f4f6}.pg.active{background:#2563eb;color:#fff;border-color:#2563eb}
+        .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;overflow-y:auto}
+        .modal{max-width:850px;margin:40px auto;background:#fff;border-radius:10px;padding:22px;max-height:90vh;overflow-y:auto}
+        .loader{border:3px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;width:22px;height:22px;animation:spin .7s linear infinite;display:inline-block}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        #loading{text-align:center;padding:30px;display:none}
+    </style>
+</head>
+<body>
+<div class="header"><div class="header-inner"><div><h1>ANAC Bandi — Consultazione</h1><p>Database: <span id="dbT">{{ totale }}</span> bandi</p></div><button class="btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)" onclick="exportXl()">📥 Esporta Excel</button></div></div>
+<div class="container">
+<div class="card stats"><div class="stat"><div class="stat-num" id="sA" style="color:#1e40af">-</div><div class="stat-label">Totale DB</div></div><div class="stat"><div class="stat-num" id="sO" style="color:#059669">-</div><div class="stat-label">In Corso</div></div><div class="stat"><div class="stat-num" id="sW" style="color:#d97706">-</div><div class="stat-label">Aggiudicati</div></div><div class="stat"><div class="stat-num" id="sF" style="color:#7c3aed">-</div><div class="stat-label">Risultati filtrati</div></div></div>
+
+<div class="card" style="padding:12px 18px"><label style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase">FILTRO KEYWORD (oggetto bando)</label><div class="kw-area" style="margin-top:6px" id="kwArea"><span id="kwC"></span><input type="text" id="kwInput" placeholder="Digita keyword e premi Invio..."></div><div style="margin-top:8px;display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:#aaa">Preset:</span>{% for kw in keywords_default %}<span class="kw-preset" onclick="addKw('{{ kw }}')">+ {{ kw }}</span>{% endfor %}<span class="kw-preset" onclick="loadPreset()" style="background:#dbeafe;border-style:solid;border-color:#93c5fd">⚡ Tutti</span></div></div>
+
+<div class="card filters"><div class="fg" style="flex:2;min-width:220px"><label>Ricerca libera</label><input type="text" id="sQ" placeholder="CIG, oggetto, stazione appaltante..." oninput="deb()"></div><div class="fg"><label>Anno</label><select id="fA" onchange="ld(1)"><option value="">Tutti</option>{% for a in filtri.anni %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select></div><div class="fg"><label>Esito</label><select id="fE" onchange="ld(1)"><option value="">Tutti</option><option value="IN_CORSO">🟢 In Corso</option>{% for e in filtri.esiti %}<option value="{{ e }}">{{ e[:45] }}</option>{% endfor %}</select></div><div class="fg"><label>Provincia</label><select id="fP" onchange="ld(1)"><option value="">Tutte</option>{% for p in filtri.province %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select></div><button class="btn btn-out" onclick="resetAll()">✕ Reset</button></div>
+
+<div class="card" style="overflow-x:auto"><div id="loading"><div class="loader" style="margin:auto"></div><p style="color:#aaa;margin-top:10px;font-size:13px">Caricamento...</p></div><table><thead><tr><th onclick="srt('cig')">CIG</th><th onclick="srt('oggetto_lotto')">Oggetto</th><th onclick="srt('denominazione_amministrazione_appaltante')">Stazione Appaltante</th><th onclick="srt('importo_lotto')" style="text-align:right">Importo</th><th onclick="srt('provincia')">Prov</th><th onclick="srt('data_pubblicazione')">Pubblicazione</th><th onclick="srt('data_scadenza_offerta')">Scadenza</th><th>Esito</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="paging"><div class="paging-info" id="pgI"></div><div id="pgB" style="display:flex;gap:3px"></div></div>
+</div>
+
+<div class="modal-bg" id="modal" onclick="if(event.target===this)cm()"><div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 id="mT">Dettaglio</h2><span onclick="cm()" style="cursor:pointer;font-size:20px;color:#aaa">✕</span></div><div id="mB"></div></div></div>
+
+<script>
+let sc='data_pubblicazione',so='desc',pg=1,tm,kws=[];
+fetch('/api/stats').then(r=>r.json()).then(s=>{document.getElementById('sA').textContent=(s.totale||0).toLocaleString('it');document.getElementById('sO').textContent=(s.in_corso||0).toLocaleString('it');document.getElementById('sW').textContent=(s.aggiudicati||0).toLocaleString('it')});
+function rc(){document.getElementById('kwC').innerHTML=kws.map(k=>`<span class="kw-chip">${k}<span class="x" onclick="rk('${k}')">×</span></span>`).join('')}
+function addKw(k){k=k.trim().toUpperCase();if(k&&!kws.includes(k)){kws.push(k);rc();ld(1)}document.getElementById('kwInput').value=''}
+function rk(k){kws=kws.filter(x=>x!==k);rc();ld(1)}
+function loadPreset(){kws={{keywords_default|tojson}};rc();ld(1)}
+document.getElementById('kwInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addKw(e.target.value)}});
+function gp(){return{keywords:kws.join(','),q:document.getElementById('sQ').value,anno:document.getElementById('fA').value,esito:document.getElementById('fE').value,provincia:document.getElementById('fP').value,sort:sc,order:so,page:pg,per_page:50}}
+function ld(p){pg=p||1;const params=new URLSearchParams({...gp(),page:pg});document.getElementById('loading').style.display='block';document.getElementById('tb').innerHTML='';fetch(`/api/bandi?${params}`).then(r=>r.json()).then(d=>{document.getElementById('loading').style.display='none';document.getElementById('sF').textContent=d.total.toLocaleString('it');rr(d.records);rp(d)})}
+function rr(rows){const tb=document.getElementById('tb');if(!rows.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:#ccc">Nessun risultato</td></tr>';return}tb.innerHTML=rows.map(r=>{const imp=r.importo_lotto?'€'+parseFloat(r.importo_lotto).toLocaleString('it',{minimumFractionDigits:2}):'';let b='';if(!r.esito)b='<span class="badge bg">In Corso</span>';else if(r.esito==='AGGIUDICATA')b='<span class="badge bb">Aggiudicata</span>';else b='<span class="badge bgr">'+((r.esito||'').substring(0,28))+'</span>';return`<tr onclick='sd(${JSON.stringify(r).replace(/'/g,"&#39;")})'><td style="font-family:monospace;font-size:12px"><a href="https://dati.anticorruzione.it/superset/recaptcha/?cig=${r.cig||''}&next=dettaglio_cig" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;text-decoration:none;font-weight:600" title="Apri dettaglio su ANAC">${r.cig||''} ↗</a></td><td title="${(r.oggetto_lotto||'').replace(/"/g,'&quot;')}">${r.oggetto_lotto||''}</td><td>${r.denominazione_amministrazione_appaltante||''}</td><td style="text-align:right;font-weight:600">${imp}</td><td>${r.provincia||''}</td><td>${r.data_pubblicazione||''}</td><td>${r.data_scadenza_offerta||''}</td><td>${b}</td></tr>`}).join('')}
+function rp(d){const s=(d.page-1)*d.per_page+1,e=Math.min(d.page*d.per_page,d.total);document.getElementById('pgI').textContent=d.total?`${s}-${e} di ${d.total.toLocaleString('it')}`:'';let h='';if(d.page>1)h+=`<button class="pg" onclick="ld(${d.page-1})">← Prec</button>`;const f=Math.max(1,d.page-4),t=Math.min(d.pages,f+9);for(let i=f;i<=t;i++)h+=`<button class="pg ${i===d.page?'active':''}" onclick="ld(${i})">${i}</button>`;if(d.page<d.pages)h+=`<button class="pg" onclick="ld(${d.page+1})">Succ →</button>`;document.getElementById('pgB').innerHTML=h}
+function srt(c){if(sc===c)so=so==='asc'?'desc':'asc';else{sc=c;so='desc'}ld(1)}
+function deb(){clearTimeout(tm);tm=setTimeout(()=>ld(1),400)}
+function resetAll(){kws=[];rc();document.getElementById('sQ').value='';document.getElementById('fA').value='';document.getElementById('fE').value='';document.getElementById('fP').value='';sc='data_pubblicazione';so='desc';ld(1)}
+function exportXl(){const p=new URLSearchParams(gp());window.open(`/api/export?${p}`,'_blank')}
+function sd(r){document.getElementById('mT').textContent='CIG: '+(r.cig||'');const skip=['fonte','data_import'];let h='<table style="width:100%;font-size:13px">';for(const[k,v]of Object.entries(r)){if(skip.includes(k)||!v)continue;h+=`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:5px 8px;font-weight:600;color:#888;width:35%;vertical-align:top">${k}</td><td style="padding:5px 8px;word-break:break-word">${v}</td></tr>`}h+='</table>';document.getElementById('mB').innerHTML=h;document.getElementById('modal').style.display='block'}
+function cm(){document.getElementById('modal').style.display='none'}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cm()});
+ld(1);
+</script>
+</body></html>

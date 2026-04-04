@@ -1,0 +1,196 @@
+═══════════════════════════════════════════════════════════
+  ISTRUZIONI PASSO-PASSO — VS Code + Railway
+═══════════════════════════════════════════════════════════
+
+OBIETTIVO: mettere online l'app ANAC su Railway in modo
+che sia accessibile da qualsiasi PC via browser, con
+aggiornamento automatico giornaliero dei dati.
+
+TEMPO NECESSARIO: ~20 minuti
+
+
+═══════════════════════════════════════
+  FASE 0 — INSTALLA GLI STRUMENTI
+═══════════════════════════════════════
+
+A) Git (se non è già installato):
+   → Scarica da: https://git-scm.com/download/win
+   → Installa con tutte le opzioni di default
+
+B) VS Code (se non è già installato):
+   → Scarica da: https://code.visualstudio.com/
+   → Installa
+
+C) Account GitHub (se non ce l'hai):
+   → Vai su https://github.com e registrati (gratuito)
+
+D) Account Railway:
+   → Vai su https://railway.app
+   → Clicca "Login" → "Login with GitHub"
+   → Autorizza l'accesso
+
+
+═══════════════════════════════════════
+  FASE 1 — APRI LA CARTELLA IN VS CODE
+═══════════════════════════════════════
+
+1. Copia la cartella "anac_railway" sul Desktop:
+   C:\Users\matteo\Desktop\Claude\anac_railway
+
+2. Apri VS Code
+
+3. Menu: File → Apri cartella...
+   → Seleziona: C:\Users\matteo\Desktop\Claude\anac_railway
+   → Clicca "Seleziona cartella"
+
+4. Nella barra laterale vedrai i file del progetto:
+   - app.py
+   - config.py
+   - database.py
+   - sync.py
+   - templates/index.html
+   - requirements.txt
+   - Procfile
+   - ...
+
+
+═══════════════════════════════════════
+  FASE 2 — CREA IL REPOSITORY GITHUB
+═══════════════════════════════════════
+
+1. Apri il terminale in VS Code:
+   → Menu: Terminale → Nuovo terminale
+   (si apre un terminale in basso nella finestra)
+
+2. Scrivi questi comandi uno alla volta (premi Invio dopo ciascuno):
+
+   git init
+   git add .
+   git commit -m "ANAC Bandi app"
+
+3. Ora vai su GitHub nel browser:
+   → Apri https://github.com/new
+   → Repository name: anac-bandi
+   → Seleziona: Private
+   → NON spuntare nessuna checkbox (no README, no .gitignore)
+   → Clicca "Create repository"
+
+4. GitHub ti mostra una pagina con dei comandi.
+   Torna nel terminale di VS Code e scrivi:
+
+   git branch -M main
+   git remote add origin https://github.com/TUO_USERNAME/anac-bandi.git
+   git push -u origin main
+
+   (sostituisci TUO_USERNAME con il tuo nome utente GitHub)
+
+   → Ti chiederà username e password di GitHub
+   → Per la password usa un "Personal Access Token":
+     - Su GitHub: Settings → Developer settings → Personal access tokens → Generate new token
+     - Spunta "repo" → Generate → Copia il token
+     - Usa il token come password
+
+
+═══════════════════════════════════════
+  FASE 3 — DEPLOY SU RAILWAY
+═══════════════════════════════════════
+
+1. Apri https://railway.app nel browser
+
+2. Clicca "New Project"
+
+3. Clicca "Deploy from GitHub Repo"
+
+4. Seleziona il repo "anac-bandi"
+   (se non lo vedi, clicca "Configure GitHub App" e autorizza)
+
+5. Railway inizia il build automaticamente.
+   Aspetta che finisca (1-2 minuti).
+
+6. AGGIUNGI IL VOLUME (per salvare il database):
+   → Clicca sul servizio (il rettangolo nel progetto)
+   → Vai nel tab "Settings"
+   → Scorri fino a "Mount Volume"
+   → Clicca "Mount Volume"
+   → In "Mount Path" scrivi: /data
+   → Clicca "Add"
+
+7. IMPOSTA LE VARIABILI:
+   → Vai nel tab "Variables"
+   → Clicca "New Variable" e aggiungi queste (una alla volta):
+
+   Nome: DATA_DIR         Valore: /data
+   Nome: SYNC_SECRET      Valore: miachiave123
+
+8. Railway fa automaticamente un nuovo deploy.
+   Aspetta che finisca.
+
+9. OTTIENI L'URL PUBBLICO:
+   → Vai nel tab "Settings"
+   → Sezione "Networking" → "Generate Domain"
+   → Railway genera un URL tipo: anac-bandi-xxx.up.railway.app
+   → COPIALO — questo è l'indirizzo del tuo sito!
+
+
+═══════════════════════════════════════
+  FASE 4 — PRIMO CARICAMENTO DATI
+═══════════════════════════════════════
+
+1. Apri nel browser:
+   https://TUO-URL.up.railway.app/api/sync?key=miachiave123
+
+   (sostituisci TUO-URL con l'URL di Railway)
+
+2. Vedrai: {"status": "Sync avviato in background"}
+
+3. Il download dei dati avviene in background (~10 minuti).
+   Per vedere il progresso:
+   → Su Railway, clicca sul servizio
+   → Tab "Deployments" → clicca sull'ultimo deploy → "View Logs"
+
+4. Dopo ~10 minuti, apri:
+   https://TUO-URL.up.railway.app
+
+5. FATTO! L'app è online e accessibile da qualsiasi PC!
+
+
+═══════════════════════════════════════
+  COME FUNZIONA DOPO
+═══════════════════════════════════════
+
+• Il sync si esegue AUTOMATICAMENTE ogni notte alle 3:00
+  (scarica solo i dati nuovi, pochi secondi)
+
+• Per un sync manuale, apri nel browser:
+  https://TUO-URL.up.railway.app/api/sync?key=miachiave123
+
+• Per aggiornare il codice dell'app:
+  1. Modifica i file in VS Code
+  2. Nel terminale:
+     git add .
+     git commit -m "aggiornamento"
+     git push
+  3. Railway fa il deploy automaticamente
+
+• L'URL è accessibile da QUALSIASI PC con un browser.
+  Condividilo con chi vuoi.
+
+
+═══════════════════════════════════════
+  PROBLEMI COMUNI
+═══════════════════════════════════════
+
+"git non è riconosciuto come comando"
+  → Installa Git: https://git-scm.com/download/win
+  → Riavvia VS Code dopo l'installazione
+
+"Railway build fallito"
+  → Controlla i log: tab "Deployments" → "View Logs"
+  → Probabilmente manca un file — verifica che tutti i file siano nel repo
+
+"Sync non trova dati"
+  → Il server Railway potrebbe essere bloccato dal WAF di ANAC
+  → In quel caso, fai il sync dal tuo PC locale e carica il database
+
+"La pagina mostra 0 bandi"
+  → Devi prima fare il sync (Fase 4, punto 1)
