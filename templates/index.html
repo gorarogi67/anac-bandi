@@ -8,7 +8,7 @@
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#1a1a1a}
         .header{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:18px 32px}
-        .header-inner{max-width:1440px;margin:auto;display:flex;align-items:center;justify-content:space-between}
+        .header-inner{max-width:1440px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
         .header h1{font-size:20px;font-weight:700}.header p{font-size:12px;opacity:.75;margin-top:3px}
         .container{max-width:1440px;margin:16px auto;padding:0 16px}
         .card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
@@ -18,19 +18,20 @@
         .filters{padding:14px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:end}
         .fg{display:flex;flex-direction:column;gap:3px}
         .fg label{font-size:11px;color:#888;font-weight:600;text-transform:uppercase}
-        input,select{border:1px solid #d1d5db;border-radius:6px;padding:7px 10px;font-size:13px}
+        input,select{border:1px solid #d1d5db;border-radius:6px;padding:7px 10px;font-size:13px;width:100%}
         input:focus,select:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1)}
         .kw-area{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
         .kw-chip{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600}
         .kw-chip .x{cursor:pointer;font-size:14px;opacity:.6}.kw-chip .x:hover{opacity:1}
-        .kw-preset{background:#f3f4f6;color:#374151;border:1px dashed #ccc;padding:4px 10px;border-radius:14px;font-size:12px;cursor:pointer}
+        .kw-preset{background:#f3f4f6;color:#374151;border:1px dashed #ccc;padding:4px 10px;border-radius:14px;font-size:12px;cursor:pointer;white-space:nowrap}
         .kw-preset:hover{background:#e5e7eb}
-        .kw-mode-toggle{display:inline-flex;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;font-size:12px;font-weight:600}
+        .kw-mode-toggle{display:inline-flex;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;font-size:12px;font-weight:600;flex-shrink:0}
         .kw-mode-btn{padding:4px 10px;cursor:pointer;background:#fff;color:#555;border:none;transition:all .1s}
         .kw-mode-btn.active{background:#2563eb;color:#fff}
-        #kwInput{border:none;outline:none;min-width:120px;font-size:13px;padding:4px 0}
+        #kwInput{border:none;outline:none;min-width:100px;font-size:13px;padding:4px 0;width:auto}
         .btn{padding:7px 14px;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;border:none;transition:all .1s}
         .btn-out{background:#fff;color:#555;border:1px solid #d1d5db}.btn-out:hover{background:#f9fafb}
+        .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
         table{width:100%;border-collapse:collapse;font-size:13px}
         th{position:sticky;top:0;background:#f8fafc;padding:9px 10px;text-align:left;font-size:11px;color:#888;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:2px solid #e5e7eb}
         th:hover{background:#eef2ff;color:#2563eb}
@@ -38,7 +39,7 @@
         tr:hover td{background:#f8fafc}tr{cursor:pointer}
         .badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
         .bg{background:#d1fae5;color:#065f46}.bb{background:#dbeafe;color:#1e40af}.bgr{background:#f3f4f6;color:#666}
-        .paging{display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-top:10px}
+        .paging{display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-top:10px;flex-wrap:wrap;gap:8px}
         .paging-info{font-size:12px;color:#888}
         .pg{padding:5px 10px;border:1px solid #d1d5db;border-radius:5px;background:#fff;cursor:pointer;font-size:12px;margin:0 1px}
         .pg:hover{background:#f3f4f6}.pg.active{background:#2563eb;color:#fff;border-color:#2563eb}
@@ -47,22 +48,64 @@
         .loader{border:3px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;width:22px;height:22px;animation:spin .7s linear infinite;display:inline-block}
         @keyframes spin{to{transform:rotate(360deg)}}
         #loading{text-align:center;padding:30px;display:none}
+
+        /* ── Tablet (< 1024px) ── */
+        @media (max-width:1024px){
+            .header{padding:14px 20px}
+            td{max-width:200px}
+        }
+
+        /* ── Tablet piccolo (< 768px) ── */
+        @media (max-width:768px){
+            .header{padding:12px 16px}
+            .header h1{font-size:17px}
+            .stats{grid-template-columns:repeat(2,1fr)}
+            .stat:nth-child(2){border-right:none}
+            .stat:nth-child(3){border-top:1px solid #eee}
+            .stat-num{font-size:22px}
+            .filters{padding:12px 14px;gap:8px}
+            .fg{min-width:calc(50% - 8px)}
+            table th:nth-child(7), table td:nth-child(7){display:none} /* nascondi Scadenza */
+        }
+
+        /* ── Mobile (< 480px) ── */
+        @media (max-width:480px){
+            .header-inner{flex-direction:column;align-items:flex-start}
+            .header h1{font-size:16px}
+            .container{padding:0 10px;margin:10px auto}
+            .stats{grid-template-columns:repeat(2,1fr)}
+            .stat{padding:10px 8px}
+            .stat-num{font-size:18px}
+            .stat-label{font-size:11px}
+            .card{border-radius:8px;margin-bottom:10px}
+            .filters{padding:10px 12px;gap:8px}
+            .fg{width:100%}
+            table th:nth-child(3), table td:nth-child(3){display:none} /* nascondi SA */
+            table th:nth-child(6), table td:nth-child(6){display:none} /* nascondi Pubblicazione */
+            table th:nth-child(7), table td:nth-child(7){display:none} /* nascondi Scadenza */
+            td{max-width:140px;font-size:12px}
+            th{font-size:10px;padding:7px 6px}
+            td{padding:7px 6px}
+            .modal{margin:0;border-radius:0;max-height:100dvh;min-height:100dvh;padding:16px}
+            .paging{justify-content:center}
+            .paging-info{width:100%;text-align:center}
+        }
     </style>
 </head>
 <body>
-<div class="header"><div class="header-inner"><div><h1>ANAC Bandi — Consultazione</h1><p>Database: <span id="dbT">{{ totale }}</span> bandi</p></div><button class="btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)" onclick="exportXl()">📥 Esporta Excel</button></div></div>
+<div class="header"><div class="header-inner"><div><h1>ANAC Bandi — Consultazione</h1><p>Database: <span id="dbT">{{ totale }}</span> bandi</p></div><button class="btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);white-space:nowrap" onclick="exportXl()">📥 Esporta Excel</button></div></div>
 <div class="container">
 <div class="card stats"><div class="stat"><div class="stat-num" id="sA" style="color:#1e40af">-</div><div class="stat-label">Totale DB</div></div><div class="stat"><div class="stat-num" id="sO" style="color:#059669">-</div><div class="stat-label">In Corso</div></div><div class="stat"><div class="stat-num" id="sW" style="color:#d97706">-</div><div class="stat-label">Aggiudicati</div></div><div class="stat"><div class="stat-num" id="sF" style="color:#7c3aed">-</div><div class="stat-label">Risultati filtrati</div></div></div>
 
-<div class="card" style="padding:12px 18px"><div style="display:flex;align-items:center;justify-content:space-between"><label style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase">FILTRO KEYWORD (oggetto bando)</label><div class="kw-mode-toggle"><button class="kw-mode-btn active" id="btnOR" onclick="setKwMode('or')">OR</button><button class="kw-mode-btn" id="btnAND" onclick="setKwMode('and')">AND</button></div></div><div class="kw-area" style="margin-top:6px" id="kwArea"><span id="kwC"></span><input type="text" id="kwInput" placeholder="Digita keyword e premi Invio..."></div><div style="margin-top:8px;display:flex;gap:6px;align-items:center"><span style="font-size:11px;color:#aaa">Preset:</span>{% for kw in keywords_default %}<span class="kw-preset" onclick="addKw('{{ kw }}')">+ {{ kw }}</span>{% endfor %}<span class="kw-preset" onclick="loadPreset()" style="background:#dbeafe;border-style:solid;border-color:#93c5fd">⚡ Tutti</span></div></div>
+<div class="card" style="padding:12px 18px"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><label style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase">FILTRO KEYWORD (oggetto bando)</label><div class="kw-mode-toggle"><button class="kw-mode-btn active" id="btnOR" onclick="setKwMode('or')">OR</button><button class="kw-mode-btn" id="btnAND" onclick="setKwMode('and')">AND</button></div></div><div class="kw-area" style="margin-top:6px" id="kwArea"><span id="kwC"></span><input type="text" id="kwInput" placeholder="Digita keyword e premi Invio..."></div><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span style="font-size:11px;color:#aaa">Preset:</span>{% for kw in keywords_default %}<span class="kw-preset" onclick="addKw('{{ kw }}')">+ {{ kw }}</span>{% endfor %}<span class="kw-preset" onclick="loadPreset()" style="background:#dbeafe;border-style:solid;border-color:#93c5fd">⚡ Tutti</span></div></div>
 
-<div class="card filters"><div class="fg" style="flex:2;min-width:220px"><label>Ricerca libera</label><input type="text" id="sQ" placeholder="CIG, oggetto, stazione appaltante..." oninput="deb()"></div><div class="fg"><label>Anno</label><select id="fA" onchange="ld(1)"><option value="">Tutti</option>{% for a in filtri.anni %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select></div><div class="fg"><label>Esito</label><select id="fE" onchange="ld(1)"><option value="">Tutti</option><option value="IN_CORSO">🟢 In Corso</option>{% for e in filtri.esiti %}<option value="{{ e }}">{{ e[:45] }}</option>{% endfor %}</select></div><div class="fg"><label>Provincia</label><select id="fP" onchange="ld(1)"><option value="">Tutte</option>{% for p in filtri.province %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select></div><button class="btn btn-out" onclick="resetAll()">✕ Reset</button></div>
+<div class="card filters"><div class="fg" style="flex:2;min-width:200px"><label>Ricerca libera</label><input type="text" id="sQ" placeholder="CIG, oggetto, stazione appaltante..." oninput="deb()"></div><div class="fg"><label>Anno</label><select id="fA" onchange="ld(1)"><option value="">Tutti</option>{% for a in filtri.anni %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select></div><div class="fg"><label>Esito</label><select id="fE" onchange="ld(1)"><option value="">Tutti</option><option value="IN_CORSO">🟢 In Corso</option>{% for e in filtri.esiti %}<option value="{{ e }}">{{ e[:45] }}</option>{% endfor %}</select></div><div class="fg"><label>Provincia</label><select id="fP" onchange="ld(1)"><option value="">Tutte</option>{% for p in filtri.province %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select></div><button class="btn btn-out" style="align-self:flex-end" onclick="resetAll()">✕ Reset</button></div>
 
-<div class="card" style="overflow-x:auto"><div id="loading"><div class="loader" style="margin:auto"></div><p style="color:#aaa;margin-top:10px;font-size:13px">Caricamento...</p></div><table><thead><tr><th onclick="srt('cig')">CIG</th><th onclick="srt('oggetto_lotto')">Oggetto</th><th onclick="srt('denominazione_amministrazione_appaltante')">Stazione Appaltante</th><th onclick="srt('importo_lotto')" style="text-align:right">Importo</th><th onclick="srt('provincia')">Prov</th><th onclick="srt('data_pubblicazione')">Pubblicazione</th><th onclick="srt('data_scadenza_offerta')">Scadenza</th><th>Esito</th></tr></thead><tbody id="tb"></tbody></table></div>
-<div class="paging"><div class="paging-info" id="pgI"></div><div id="pgB" style="display:flex;gap:3px"></div></div>
+<div class="card table-wrap"><div id="loading"><div class="loader" style="margin:auto"></div><p style="color:#aaa;margin-top:10px;font-size:13px">Caricamento...</p></div><table><thead><tr><th onclick="srt('cig')">CIG</th><th onclick="srt('oggetto_lotto')">Oggetto</th><th onclick="srt('denominazione_amministrazione_appaltante')">Stazione Appaltante</th><th onclick="srt('importo_lotto')" style="text-align:right">Importo</th><th onclick="srt('provincia')">Prov</th><th onclick="srt('data_pubblicazione')">Pubblicazione</th><th onclick="srt('data_scadenza_offerta')">Scadenza</th><th>Esito</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="paging"><div class="paging-info" id="pgI"></div><div id="pgB" style="display:flex;flex-wrap:wrap;gap:3px"></div></div>
 </div>
 
-<div class="modal-bg" id="modal" onclick="if(event.target===this)cm()"><div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 id="mT">Dettaglio</h2><span onclick="cm()" style="cursor:pointer;font-size:20px;color:#aaa">✕</span></div><div id="mB"></div></div></div>
+<div class="modal-bg" id="modal" onclick="if(event.target===this)cm()"><div class="modal"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 id="mT" style="font-size:16px;word-break:break-all">Dettaglio</h2><span onclick="cm()" style="cursor:pointer;font-size:20px;color:#aaa;padding:4px 8px">✕</span></div><div id="mB"></div></div></div>
 
 <script>
 let sc='data_pubblicazione',so='desc',pg=1,tm,kws=[],kwMode='or';
