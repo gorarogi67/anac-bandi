@@ -197,14 +197,15 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
     params = []
     filters = filters or {}
 
-    # Filtro keyword (OR tra keyword, cerca in oggetto_lotto e oggetto_gara)
+    # Filtro keyword (OR o AND tra keyword, cerca in oggetto_lotto e oggetto_gara)
     if filters.get("keywords"):
         kw_list = filters["keywords"]
         kw_clauses = []
         for kw in kw_list:
             kw_clauses.append("(oggetto_lotto LIKE ? OR oggetto_gara LIKE ?)")
             params.extend([f"%{kw}%", f"%{kw}%"])
-        where.append(f"({' OR '.join(kw_clauses)})")
+        join_op = " AND " if filters.get("kw_mode") == "and" else " OR "
+        where.append(f"({join_op.join(kw_clauses)})")
 
     # Ricerca testo libero
     if filters.get("q"):

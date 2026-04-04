@@ -63,6 +63,7 @@ def api_bandi():
     keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
     filters = {
         "keywords": keywords,
+        "kw_mode": request.args.get("kw_mode", "or"),
         "q": request.args.get("q", "").strip(),
         "anno": request.args.get("anno", ""),
         "esito": request.args.get("esito", ""),
@@ -100,7 +101,8 @@ def api_export():
     kw_str = request.args.get("keywords", "").strip()
     keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
     filters = {
-        "keywords": keywords, "q": request.args.get("q", "").strip(),
+        "keywords": keywords, "kw_mode": request.args.get("kw_mode", "or"),
+        "q": request.args.get("q", "").strip(),
         "anno": request.args.get("anno", ""), "esito": request.args.get("esito", ""),
         "provincia": request.args.get("provincia", ""),
         "sort": request.args.get("sort", "data_pubblicazione"),
