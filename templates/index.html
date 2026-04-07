@@ -284,7 +284,11 @@ function setAlboFilter(f,btn){
 }
 function ldAlbi(){
   if(!albiVisible)return;
-  const params=new URLSearchParams(gp());
+  const params=new URLSearchParams({
+    keywords:kws.join(','),
+    kw_mode:kwMode,
+    anni:[...selectedAnni].join(','),
+  });
   fetch('/api/albi?'+params).then(r=>r.json()).then(data=>{
     albiData=data;
     renderAlbi();
