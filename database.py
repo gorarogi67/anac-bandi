@@ -242,6 +242,7 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
         "cig", "oggetto_lotto", "importo_lotto", "data_pubblicazione",
         "data_scadenza_offerta", "denominazione_amministrazione_appaltante",
         "provincia", "stato", "esito", "anno_pubblicazione", "importo_complessivo_gara",
+        "data_import",
     }
     if sort_col not in safe_cols:
         sort_col = "data_pubblicazione"
@@ -253,6 +254,63 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
 
     conn.close()
     return [dict(r) for r in rows], total
+
+
+def query_bandi_province_agg(filters: dict = None) -> List[Dict]:
+    """Aggrega bandi per provincia: conteggio e somma importi."""
+    conn = get_conn()
+    where = []
+    params = []
+    filters = filters or {}
+
+    if filters.get("keywords"):
+        kw_list = filters["keywords"]
+        kw_clauses = []
+        for kw in kw_list:
+            kw_clauses.append("(oggetto_lotto LIKE ? OR oggetto_gara LIKE ?)")
+            params.extend([f"%{kw}%", f"%{kw}%"])
+        join_op = " AND " if filters.get("kw_mode") == "and" else " OR "
+        where.append(f"({join_op.join(kw_clauses)})")
+
+    if filters.get("q"):
+        q = f"%{filters['q']}%"
+        where.append(
+            "(oggetto_lotto LIKE ? OR cig LIKE ? OR "
+            "denominazione_amministrazione_appaltante LIKE ? OR oggetto_gara LIKE ?)"
+        )
+        params.extend([q, q, q, q])
+
+    if filters.get("anno"):
+        where.append("anno_pubblicazione = ?")
+        params.append(str(filters["anno"]))
+
+    if filters.get("esito"):
+        if filters["esito"] == "IN_CORSO":
+            where.append("(esito IS NULL OR esito = '')")
+        else:
+            where.append("esito = ?")
+            params.append(filters["esito"])
+
+    if filters.get("provincia"):
+        where.append("provincia = ?")
+        params.append(filters["provincia"])
+
+    where_sql = " AND ".join(where) if where else "1=1"
+
+    rows = conn.execute(f"""
+        SELECT
+            provincia,
+            COUNT(*) AS count,
+            SUM(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != ''
+                THEN CAST(importo_lotto AS REAL) ELSE 0 END) AS total_importo
+        FROM bandi
+        WHERE {where_sql}
+          AND provincia IS NOT NULL AND provincia != ''
+        GROUP BY provincia
+        ORDER BY total_importo DESC
+    """, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_filtri_disponibili() -> dict:
