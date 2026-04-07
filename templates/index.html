@@ -58,7 +58,7 @@
         .map-toggle-arrow{transition:transform .2s;font-size:11px;color:#aaa}
         #mapLegend{position:absolute;bottom:24px;right:10px;z-index:1000;background:rgba(255,255,255,.92);border-radius:8px;padding:10px 14px;font-size:12px;box-shadow:0 1px 4px rgba(0,0,0,.15);min-width:150px}
         #mapLegend .leg-row{display:flex;align-items:center;gap:8px;margin-top:5px}
-        #mapLegend .leg-circle{border-radius:50%;background:rgba(37,99,235,.35);border:2px solid #2563eb;flex-shrink:0}
+        #mapLegend .leg-circle{border-radius:3px;flex-shrink:0}
         @media (max-width:480px){
             #mapContainer{height:320px}
         }
@@ -165,40 +165,47 @@ function toggleMap(){
     ldMap();
   }
 }
+const MAP_TIERS=[
+  {max:1e5,       color:'#93c5fd',border:'#3b82f6', label:'< 100K'},
+  {max:1e6,       color:'#6ee7b7',border:'#059669', label:'100K – 1M'},
+  {max:1e7,       color:'#fde68a',border:'#d97706', label:'1M – 10M'},
+  {max:1e8,       color:'#fb923c',border:'#ea580c', label:'10M – 100M'},
+  {max:Infinity,  color:'#f87171',border:'#dc2626', label:'> 100M'},
+];
+function mapColor(imp){return MAP_TIERS.find(t=>imp<=t.max)||MAP_TIERS[4];}
+function fmtImp(v){
+  if(v>=1e9)return'€'+(v/1e9).toFixed(1)+'Mrd';
+  if(v>=1e6)return'€'+(v/1e6).toFixed(1)+'M';
+  if(v>=1e3)return'€'+(v/1e3).toFixed(0)+'K';
+  return'€'+v.toLocaleString('it',{maximumFractionDigits:0});
+}
 function ldMap(){
   if(!mapVisible||!mapObj)return;
   const params=new URLSearchParams(gp());
   fetch('/api/mapdata?'+params).then(r=>r.json()).then(data=>{
     mapCircles.forEach(c=>c.remove());
     mapCircles=[];
-    if(!data.length)return;
-    const maxImp=Math.max(...data.map(d=>d.total_importo||0));
-    const maxR=60,minR=8;
     const leg=document.getElementById('mapLegend');
-    leg.innerHTML='<div style="font-weight:600;color:#374151;margin-bottom:2px">Importo totale</div>';
+    leg.innerHTML='<div style="font-weight:700;color:#374151;margin-bottom:6px;font-size:12px">Importo totale provincia</div>';
+    MAP_TIERS.forEach(t=>{
+      const row=document.createElement('div');row.className='leg-row';
+      const sq=document.createElement('div');
+      sq.style.cssText=`width:14px;height:14px;border-radius:3px;background:${t.color};border:1.5px solid ${t.border};flex-shrink:0`;
+      const lbl=document.createElement('span');lbl.textContent=t.label;
+      row.appendChild(sq);row.appendChild(lbl);leg.appendChild(row);
+    });
+    if(!data.length)return;
     data.forEach(d=>{
       const imp=d.total_importo||0;
-      const r=imp>0?minR+Math.sqrt(imp/maxImp)*(maxR-minR):minR;
+      const tier=mapColor(imp);
       const circle=L.circleMarker([d.lat,d.lng],{
-        radius:r,
-        fillColor:'#2563eb',color:'#1e40af',weight:1.5,
-        fillOpacity:0.35,opacity:0.8
+        radius:8,
+        fillColor:tier.color,color:tier.border,weight:1.5,
+        fillOpacity:0.75,opacity:1
       }).addTo(mapObj);
-      const impFmt=imp>0?'€'+imp.toLocaleString('it',{maximumFractionDigits:0}):'n.d.';
+      const impFmt=imp>0?fmtImp(imp):'n.d.';
       circle.bindPopup(`<b>${d.provincia}</b><br>${d.count.toLocaleString('it')} gare<br>${impFmt}`);
       mapCircles.push(circle);
-    });
-    // Legenda: 3 valori rappresentativi
-    const steps=[1,0.25,0.05];
-    steps.forEach(f=>{
-      const v=maxImp*f;
-      const r=Math.round(minR+Math.sqrt(f)*(maxR-minR));
-      const row=document.createElement('div');row.className='leg-row';
-      const circ=document.createElement('div');circ.className='leg-circle';
-      circ.style.width=(r*2)+'px';circ.style.height=(r*2)+'px';
-      const lbl=document.createElement('span');
-      lbl.textContent='€'+v.toLocaleString('it',{maximumFractionDigits:0,notation:'compact',compactDisplay:'short'});
-      row.appendChild(circ);row.appendChild(lbl);leg.appendChild(row);
     });
     if(data.length>1){
       const bounds=L.latLngBounds(data.map(d=>[d.lat,d.lng]));
