@@ -231,6 +231,11 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
         params.extend([str(a) for a in filters["anni"]])
     if filters.get("con_scadenza"):
         where.append("data_scadenza_offerta IS NOT NULL AND data_scadenza_offerta != ''")
+    if filters.get("cf_sa"):
+        where.append("cf_amministrazione_appaltante = ?")
+        params.append(filters["cf_sa"])
+    if filters.get("solo_ad"):
+        where.append("cod_tipo_scelta_contraente IN ('24','23')")
 
     if filters.get("esito"):
         if filters["esito"] == "IN_CORSO":
@@ -294,6 +299,11 @@ def _build_where(filters: dict):
         params.extend([str(a) for a in filters["anni"]])
     if filters.get("con_scadenza"):
         where.append("data_scadenza_offerta IS NOT NULL AND data_scadenza_offerta != ''")
+    if filters.get("cf_sa"):
+        where.append("cf_amministrazione_appaltante = ?")
+        params.append(filters["cf_sa"])
+    if filters.get("solo_ad"):
+        where.append("cod_tipo_scelta_contraente IN ('24','23')")
     if filters.get("esito"):
         if filters["esito"] == "IN_CORSO":
             where.append(

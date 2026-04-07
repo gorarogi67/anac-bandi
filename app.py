@@ -65,6 +65,8 @@ def _parse_filters(args):
         "q": args.get("q", "").strip(),
         "anni": anni,
         "con_scadenza": args.get("con_scadenza", "") == "1",
+        "cf_sa": args.get("cf_sa", "").strip(),
+        "solo_ad": args.get("solo_ad", "") == "1",
         "esito": args.get("esito", ""),
         "provincia": args.get("provincia", ""),
     }
