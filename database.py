@@ -454,7 +454,7 @@ def upsert_albo_sa(cf_sa: str, denominazione_sa: str, stato: str, note: str):
 def get_filtri_disponibili() -> dict:
     conn = get_conn()
     anni = [r[0] for r in conn.execute(
-        "SELECT DISTINCT anno_pubblicazione FROM bandi WHERE anno_pubblicazione IS NOT NULL ORDER BY anno_pubblicazione DESC"
+        "SELECT DISTINCT anno_pubblicazione FROM bandi WHERE anno_pubblicazione IS NOT NULL AND CAST(anno_pubblicazione AS INTEGER) >= 2022 ORDER BY anno_pubblicazione DESC"
     ).fetchall() if r[0]]
     province = [r[0] for r in conn.execute(
         "SELECT DISTINCT provincia FROM bandi WHERE provincia IS NOT NULL AND provincia != '' ORDER BY provincia"
