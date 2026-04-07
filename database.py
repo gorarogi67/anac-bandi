@@ -224,6 +224,7 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
         if filters["esito"] == "IN_CORSO":
             where.append(
                 "(esito IS NULL OR esito = '') AND "
+                "(data_comunicazione_esito IS NULL OR data_comunicazione_esito = '') AND "
                 "(data_scadenza_offerta IS NULL OR data_scadenza_offerta = '' "
                 " OR data_scadenza_offerta >= date('now'))"
             )
@@ -282,6 +283,7 @@ def _build_where(filters: dict):
         if filters["esito"] == "IN_CORSO":
             where.append(
                 "(esito IS NULL OR esito = '') AND "
+                "(data_comunicazione_esito IS NULL OR data_comunicazione_esito = '') AND "
                 "(data_scadenza_offerta IS NULL OR data_scadenza_offerta = '' "
                 " OR data_scadenza_offerta >= date('now'))"
             )
