@@ -76,6 +76,15 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_provincia ON bandi(provincia);
         CREATE INDEX IF NOT EXISTS idx_sa ON bandi(denominazione_amministrazione_appaltante);
         CREATE INDEX IF NOT EXISTS idx_data_pub ON bandi(data_pubblicazione);
+        CREATE INDEX IF NOT EXISTS idx_tipo_sc ON bandi(cod_tipo_scelta_contraente);
+
+        CREATE TABLE IF NOT EXISTS albi_fornitori (
+            cf_sa TEXT PRIMARY KEY,
+            denominazione_sa TEXT,
+            stato TEXT DEFAULT 'DA_VERIFICARE',
+            note TEXT DEFAULT '',
+            data_aggiornamento TEXT
+        );
     """)
     conn.commit()
     conn.close()
@@ -369,6 +378,61 @@ def query_bandi_province_agg(filters: dict = None) -> List[Dict]:
     """, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def query_albi_sa(filters: dict = None) -> List[Dict]:
+    """
+    Restituisce le stazioni appaltanti con affidamenti diretti,
+    raggruppate e arricchite con lo stato albo fornitore.
+    Filtri keyword/q/anno/provincia applicati; esito ignorato (mostra sempre tutti gli AD).
+    """
+    filters = filters or {}
+    # Forza solo affidamenti diretti, ignora filtro esito
+    ad_filters = {k: v for k, v in filters.items() if k != "esito"}
+    where_sql, params = _build_where(ad_filters)
+    # Aggiungi filtro tipo affidamento diretto
+    ad_where = f"({where_sql}) AND cod_tipo_scelta_contraente IN ('24','23')"
+
+    conn = get_conn()
+    rows = conn.execute(f"""
+        SELECT
+            b.cf_amministrazione_appaltante AS cf_sa,
+            b.denominazione_amministrazione_appaltante AS denominazione_sa,
+            COUNT(*) AS n_gare,
+            SUM(CASE WHEN b.importo_lotto IS NOT NULL AND b.importo_lotto != ''
+                THEN CAST(b.importo_lotto AS REAL) ELSE 0 END) AS total_importo,
+            MAX(b.data_pubblicazione) AS ultima_gara,
+            COALESCE(a.stato, 'DA_VERIFICARE') AS stato,
+            COALESCE(a.note, '') AS note,
+            a.data_aggiornamento
+        FROM bandi b
+        LEFT JOIN albi_fornitori a
+            ON b.cf_amministrazione_appaltante = a.cf_sa
+        WHERE {ad_where}
+          AND b.cf_amministrazione_appaltante IS NOT NULL
+          AND b.cf_amministrazione_appaltante != ''
+        GROUP BY b.cf_amministrazione_appaltante
+        ORDER BY n_gare DESC
+        LIMIT 200
+    """, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def upsert_albo_sa(cf_sa: str, denominazione_sa: str, stato: str, note: str):
+    """Aggiorna o inserisce lo stato albo per una stazione appaltante."""
+    conn = get_conn()
+    conn.execute("""
+        INSERT INTO albi_fornitori (cf_sa, denominazione_sa, stato, note, data_aggiornamento)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(cf_sa) DO UPDATE SET
+            denominazione_sa = excluded.denominazione_sa,
+            stato = excluded.stato,
+            note = excluded.note,
+            data_aggiornamento = excluded.data_aggiornamento
+    """, (cf_sa, denominazione_sa, stato, note, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
 
 
 def get_filtri_disponibili() -> dict:

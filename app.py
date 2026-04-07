@@ -16,7 +16,7 @@ import logging
 import threading
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
-from database import init_db, query_bandi, query_bandi_province_agg, query_bandi_charts, get_filtri_disponibili, count_bandi, get_sync_log
+from database import init_db, query_bandi, query_bandi_province_agg, query_bandi_charts, query_albi_sa, upsert_albo_sa, get_filtri_disponibili, count_bandi, get_sync_log
 from config import PORT, KEYWORDS_DEFAULT, SYNC_SECRET
 import pandas as pd
 
@@ -187,6 +187,37 @@ PROVINCE_COORDS = {
     "VICENZA":(45.546,11.535),"VERONA":(45.439,10.992),"VITERBO":(42.417,12.105),
     "VIBO VALENTIA":(38.675,16.103),
 }
+
+
+@app.route("/api/albi")
+def api_albi():
+    kw_str = request.args.get("keywords", "").strip()
+    keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
+    filters = {
+        "keywords": keywords,
+        "kw_mode": request.args.get("kw_mode", "or"),
+        "q": request.args.get("q", "").strip(),
+        "anno": request.args.get("anno", ""),
+        "provincia": request.args.get("provincia", ""),
+    }
+    if filters["anno"]:
+        try:
+            filters["anno"] = int(filters["anno"])
+        except:
+            filters["anno"] = ""
+    return jsonify(query_albi_sa(filters))
+
+
+@app.route("/api/albi/<cf_sa>", methods=["POST"])
+def api_albi_update(cf_sa):
+    data = request.get_json(force=True)
+    stato = data.get("stato", "DA_VERIFICARE")
+    note = data.get("note", "")
+    denominazione_sa = data.get("denominazione_sa", "")
+    if stato not in ("PRESENTE", "ASSENTE", "DA_VERIFICARE"):
+        return jsonify({"error": "stato non valido"}), 400
+    upsert_albo_sa(cf_sa, denominazione_sa, stato, note)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/chartsdata")
