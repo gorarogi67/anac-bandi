@@ -256,46 +256,94 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
     return [dict(r) for r in rows], total
 
 
-def query_bandi_province_agg(filters: dict = None) -> List[Dict]:
-    """Aggrega bandi per provincia: conteggio e somma importi."""
-    conn = get_conn()
+def _build_where(filters: dict):
+    """Helper condiviso: costruisce WHERE clause e params dai filtri."""
     where = []
     params = []
-    filters = filters or {}
-
     if filters.get("keywords"):
-        kw_list = filters["keywords"]
         kw_clauses = []
-        for kw in kw_list:
+        for kw in filters["keywords"]:
             kw_clauses.append("(oggetto_lotto LIKE ? OR oggetto_gara LIKE ?)")
             params.extend([f"%{kw}%", f"%{kw}%"])
         join_op = " AND " if filters.get("kw_mode") == "and" else " OR "
         where.append(f"({join_op.join(kw_clauses)})")
-
     if filters.get("q"):
         q = f"%{filters['q']}%"
-        where.append(
-            "(oggetto_lotto LIKE ? OR cig LIKE ? OR "
-            "denominazione_amministrazione_appaltante LIKE ? OR oggetto_gara LIKE ?)"
-        )
+        where.append("(oggetto_lotto LIKE ? OR cig LIKE ? OR denominazione_amministrazione_appaltante LIKE ? OR oggetto_gara LIKE ?)")
         params.extend([q, q, q, q])
-
     if filters.get("anno"):
         where.append("anno_pubblicazione = ?")
         params.append(str(filters["anno"]))
-
     if filters.get("esito"):
         if filters["esito"] == "IN_CORSO":
             where.append("(esito IS NULL OR esito = '')")
         else:
             where.append("esito = ?")
             params.append(filters["esito"])
-
     if filters.get("provincia"):
         where.append("provincia = ?")
         params.append(filters["provincia"])
+    return (" AND ".join(where) if where else "1=1"), params
 
-    where_sql = " AND ".join(where) if where else "1=1"
+
+def query_bandi_charts(filters: dict = None) -> Dict:
+    """Restituisce dati aggregati per i grafici statistici."""
+    filters = filters or {}
+    conn = get_conn()
+    where_sql, params = _build_where(filters)
+
+    def q(sql, p=None):
+        return conn.execute(sql, p if p is not None else params).fetchall()
+
+    # Trend per anno
+    anni = q(f"""
+        SELECT anno_pubblicazione, COUNT(*) as n,
+               SUM(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != ''
+                   THEN CAST(importo_lotto AS REAL) ELSE 0 END) as tot
+        FROM bandi WHERE {where_sql} AND anno_pubblicazione IS NOT NULL AND anno_pubblicazione != ''
+        GROUP BY anno_pubblicazione ORDER BY anno_pubblicazione
+    """)
+
+    # Distribuzione esiti
+    esiti = q(f"""
+        SELECT CASE WHEN esito IS NULL OR esito='' THEN 'IN CORSO' ELSE esito END as esito,
+               COUNT(*) as n
+        FROM bandi WHERE {where_sql}
+        GROUP BY esito ORDER BY n DESC LIMIT 10
+    """)
+
+    # Top 10 province per numero gare
+    province = q(f"""
+        SELECT provincia, COUNT(*) as n,
+               SUM(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != ''
+                   THEN CAST(importo_lotto AS REAL) ELSE 0 END) as tot
+        FROM bandi WHERE {where_sql} AND provincia IS NOT NULL AND provincia != ''
+        GROUP BY provincia ORDER BY n DESC LIMIT 10
+    """)
+
+    # Top 10 stazioni appaltanti
+    sa = q(f"""
+        SELECT denominazione_amministrazione_appaltante as sa, COUNT(*) as n
+        FROM bandi WHERE {where_sql}
+          AND denominazione_amministrazione_appaltante IS NOT NULL
+          AND denominazione_amministrazione_appaltante != ''
+        GROUP BY denominazione_amministrazione_appaltante ORDER BY n DESC LIMIT 10
+    """)
+
+    conn.close()
+    return {
+        "anni":     [{"anno": r[0], "n": r[1], "tot": r[2]} for r in anni],
+        "esiti":    [{"esito": r[0], "n": r[1]} for r in esiti],
+        "province": [{"provincia": r[0], "n": r[1], "tot": r[2]} for r in province],
+        "sa":       [{"sa": r[0], "n": r[1]} for r in sa],
+    }
+
+
+def query_bandi_province_agg(filters: dict = None) -> List[Dict]:
+    """Aggrega bandi per provincia: conteggio e somma importi."""
+    filters = filters or {}
+    conn = get_conn()
+    where_sql, params = _build_where(filters)
 
     rows = conn.execute(f"""
         SELECT
