@@ -50,6 +50,27 @@ def avvia_scheduler():
 
 # ── Routes ──
 
+def _parse_filters(args):
+    """Estrae e normalizza i filtri comuni dalla query string."""
+    kw_str = args.get("keywords", "").strip()
+    f = {
+        "keywords": [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else [],
+        "kw_mode": args.get("kw_mode", "or"),
+        "q": args.get("q", "").strip(),
+        "anno": args.get("anno", ""),
+        "anno_da": args.get("anno_da", ""),
+        "esito": args.get("esito", ""),
+        "provincia": args.get("provincia", ""),
+    }
+    if f["anno"]:
+        try: f["anno"] = int(f["anno"])
+        except: f["anno"] = ""
+    if f["anno_da"]:
+        try: f["anno_da"] = int(f["anno_da"])
+        except: f["anno_da"] = ""
+    return f
+
+
 @app.route("/")
 def index():
     init_db()
@@ -60,18 +81,9 @@ def index():
 
 @app.route("/api/bandi")
 def api_bandi():
-    kw_str = request.args.get("keywords", "").strip()
-    keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
-    filters = {
-        "keywords": keywords,
-        "kw_mode": request.args.get("kw_mode", "or"),
-        "q": request.args.get("q", "").strip(),
-        "anno": request.args.get("anno", ""),
-        "esito": request.args.get("esito", ""),
-        "provincia": request.args.get("provincia", ""),
-        "sort": request.args.get("sort", "data_pubblicazione"),
-        "order": request.args.get("order", "desc"),
-    }
+    filters = _parse_filters(request.args)
+    filters["sort"] = request.args.get("sort", "data_pubblicazione")
+    filters["order"] = request.args.get("order", "desc")
     try:
         page = int(request.args.get("page", 1))
     except:
@@ -80,11 +92,6 @@ def api_bandi():
         per_page = min(int(request.args.get("per_page", 50)), 500)
     except:
         per_page = 50
-    if filters["anno"]:
-        try:
-            filters["anno"] = int(filters["anno"])
-        except:
-            filters["anno"] = ""
 
     records, total = query_bandi(filters, limit=per_page, offset=(page - 1) * per_page)
     for r in records:
@@ -99,21 +106,9 @@ def api_bandi():
 
 @app.route("/api/export")
 def api_export():
-    kw_str = request.args.get("keywords", "").strip()
-    keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
-    filters = {
-        "keywords": keywords, "kw_mode": request.args.get("kw_mode", "or"),
-        "q": request.args.get("q", "").strip(),
-        "anno": request.args.get("anno", ""), "esito": request.args.get("esito", ""),
-        "provincia": request.args.get("provincia", ""),
-        "sort": request.args.get("sort", "data_pubblicazione"),
-        "order": request.args.get("order", "desc"),
-    }
-    if filters["anno"]:
-        try:
-            filters["anno"] = int(filters["anno"])
-        except:
-            filters["anno"] = ""
+    filters = _parse_filters(request.args)
+    filters["sort"] = request.args.get("sort", "data_pubblicazione")
+    filters["order"] = request.args.get("order", "desc")
     records, total = query_bandi(filters, limit=50000, offset=0)
     df = pd.DataFrame(records)
     if "fonte" in df.columns:
@@ -191,20 +186,7 @@ PROVINCE_COORDS = {
 
 @app.route("/api/albi")
 def api_albi():
-    kw_str = request.args.get("keywords", "").strip()
-    keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
-    filters = {
-        "keywords": keywords,
-        "kw_mode": request.args.get("kw_mode", "or"),
-        "q": request.args.get("q", "").strip(),
-        "anno": request.args.get("anno", ""),
-        "provincia": request.args.get("provincia", ""),
-    }
-    if filters["anno"]:
-        try:
-            filters["anno"] = int(filters["anno"])
-        except:
-            filters["anno"] = ""
+    filters = _parse_filters(request.args)
     return jsonify(query_albi_sa(filters))
 
 
@@ -222,42 +204,13 @@ def api_albi_update(cf_sa):
 
 @app.route("/api/chartsdata")
 def api_chartsdata():
-    kw_str = request.args.get("keywords", "").strip()
-    keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
-    filters = {
-        "keywords": keywords,
-        "kw_mode": request.args.get("kw_mode", "or"),
-        "q": request.args.get("q", "").strip(),
-        "anno": request.args.get("anno", ""),
-        "esito": request.args.get("esito", ""),
-        "provincia": request.args.get("provincia", ""),
-    }
-    if filters["anno"]:
-        try:
-            filters["anno"] = int(filters["anno"])
-        except:
-            filters["anno"] = ""
+    filters = _parse_filters(request.args)
     return jsonify(query_bandi_charts(filters))
 
 
 @app.route("/api/mapdata")
 def api_mapdata():
-    kw_str = request.args.get("keywords", "").strip()
-    keywords = [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else []
-    filters = {
-        "keywords": keywords,
-        "kw_mode": request.args.get("kw_mode", "or"),
-        "q": request.args.get("q", "").strip(),
-        "anno": request.args.get("anno", ""),
-        "esito": request.args.get("esito", ""),
-        "provincia": request.args.get("provincia", ""),
-    }
-    if filters["anno"]:
-        try:
-            filters["anno"] = int(filters["anno"])
-        except:
-            filters["anno"] = ""
-
+    filters = _parse_filters(request.args)
     rows = query_bandi_province_agg(filters)
     result = []
     for row in rows:

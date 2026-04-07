@@ -228,6 +228,9 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
     if filters.get("anno"):
         where.append("anno_pubblicazione = ?")
         params.append(str(filters["anno"]))
+    elif filters.get("anno_da"):
+        where.append("CAST(anno_pubblicazione AS INTEGER) >= ?")
+        params.append(int(filters["anno_da"]))
 
     if filters.get("esito"):
         if filters["esito"] == "IN_CORSO":
@@ -288,6 +291,9 @@ def _build_where(filters: dict):
     if filters.get("anno"):
         where.append("anno_pubblicazione = ?")
         params.append(str(filters["anno"]))
+    elif filters.get("anno_da"):
+        where.append("CAST(anno_pubblicazione AS INTEGER) >= ?")
+        params.append(int(filters["anno_da"]))
     if filters.get("esito"):
         if filters["esito"] == "IN_CORSO":
             where.append(
