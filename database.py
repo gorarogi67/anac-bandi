@@ -225,12 +225,12 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
         )
         params.extend([q, q, q, q])
 
-    if filters.get("anno"):
-        where.append("anno_pubblicazione = ?")
-        params.append(str(filters["anno"]))
-    elif filters.get("anno_da"):
-        where.append("CAST(anno_pubblicazione AS INTEGER) >= ?")
-        params.append(int(filters["anno_da"]))
+    if filters.get("anni"):
+        placeholders = ",".join("?" * len(filters["anni"]))
+        where.append(f"anno_pubblicazione IN ({placeholders})")
+        params.extend([str(a) for a in filters["anni"]])
+    if filters.get("con_scadenza"):
+        where.append("data_scadenza_offerta IS NOT NULL AND data_scadenza_offerta != ''")
 
     if filters.get("esito"):
         if filters["esito"] == "IN_CORSO":
@@ -288,12 +288,12 @@ def _build_where(filters: dict):
         q = f"%{filters['q']}%"
         where.append("(oggetto_lotto LIKE ? OR cig LIKE ? OR denominazione_amministrazione_appaltante LIKE ? OR oggetto_gara LIKE ?)")
         params.extend([q, q, q, q])
-    if filters.get("anno"):
-        where.append("anno_pubblicazione = ?")
-        params.append(str(filters["anno"]))
-    elif filters.get("anno_da"):
-        where.append("CAST(anno_pubblicazione AS INTEGER) >= ?")
-        params.append(int(filters["anno_da"]))
+    if filters.get("anni"):
+        placeholders = ",".join("?" * len(filters["anni"]))
+        where.append(f"anno_pubblicazione IN ({placeholders})")
+        params.extend([str(a) for a in filters["anni"]])
+    if filters.get("con_scadenza"):
+        where.append("data_scadenza_offerta IS NOT NULL AND data_scadenza_offerta != ''")
     if filters.get("esito"):
         if filters["esito"] == "IN_CORSO":
             where.append(

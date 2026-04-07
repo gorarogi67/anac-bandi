@@ -53,21 +53,21 @@ def avvia_scheduler():
 def _parse_filters(args):
     """Estrae e normalizza i filtri comuni dalla query string."""
     kw_str = args.get("keywords", "").strip()
+    anni_str = args.get("anni", "").strip()
+    anni = []
+    for a in anni_str.split(","):
+        a = a.strip()
+        if a.isdigit():
+            anni.append(int(a))
     f = {
         "keywords": [k.strip() for k in kw_str.split(",") if k.strip()] if kw_str else [],
         "kw_mode": args.get("kw_mode", "or"),
         "q": args.get("q", "").strip(),
-        "anno": args.get("anno", ""),
-        "anno_da": args.get("anno_da", ""),
+        "anni": anni,
+        "con_scadenza": args.get("con_scadenza", "") == "1",
         "esito": args.get("esito", ""),
         "provincia": args.get("provincia", ""),
     }
-    if f["anno"]:
-        try: f["anno"] = int(f["anno"])
-        except: f["anno"] = ""
-    if f["anno_da"]:
-        try: f["anno_da"] = int(f["anno_da"])
-        except: f["anno_da"] = ""
     return f
 
 
