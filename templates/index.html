@@ -129,6 +129,7 @@
 <script>
 let sc='data_import',so='desc',pg=1,tm,kws=[],kwMode='or';
 function setKwMode(m){kwMode=m;document.getElementById('btnOR').classList.toggle('active',m==='or');document.getElementById('btnAND').classList.toggle('active',m==='and');ld(1)}
+document.getElementById('fE').value='IN_CORSO';
 fetch('/api/stats').then(r=>r.json()).then(s=>{document.getElementById('sA').textContent=(s.totale||0).toLocaleString('it');document.getElementById('sO').textContent=(s.in_corso||0).toLocaleString('it');document.getElementById('sW').textContent=(s.aggiudicati||0).toLocaleString('it');ld(1)});
 function rc(){document.getElementById('kwC').innerHTML=kws.map(k=>`<span class="kw-chip">${k}<span class="x" onclick="rk('${k}')">×</span></span>`).join('')}
 function addKw(k){k=k.trim().toUpperCase();if(k&&!kws.includes(k)){kws.push(k);rc();ld(1)}document.getElementById('kwInput').value=''}
