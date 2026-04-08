@@ -131,7 +131,7 @@
     </style>
 </head>
 <body>
-<div class="header"><div class="header-inner"><div><h1>ANAC Bandi — Consultazione</h1><p>Database: <span id="dbT">{{ totale }}</span> bandi</p></div><button class="btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);white-space:nowrap" onclick="exportXl()">📥 Esporta Excel</button></div></div>
+<div class="header"><div class="header-inner"><div><h1>ANAC Bandi — Consultazione</h1><p>Database: <span id="dbT">{{ totale }}</span> bandi &nbsp;·&nbsp; <span id="syncInfo" style="opacity:.7">Ultimo sync: —</span></p></div><button class="btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);white-space:nowrap" onclick="exportXl()">📥 Esporta Excel</button></div></div>
 <div class="container">
 <div class="card stats"><div class="stat"><div class="stat-num" id="sA" style="color:#1e40af">-</div><div class="stat-label">Totale DB</div></div><div class="stat"><div class="stat-num" id="sO" style="color:#059669">-</div><div class="stat-label">In Corso</div></div><div class="stat"><div class="stat-num" id="sW" style="color:#d97706">-</div><div class="stat-label">Aggiudicati</div></div><div class="stat"><div class="stat-num" id="sF" style="color:#7c3aed">-</div><div class="stat-label">Risultati filtrati</div></div></div>
 
@@ -245,7 +245,7 @@ function toggleScadenza(btn){
 }
 initAnni();
 document.getElementById('fE').value='IN_CORSO';
-fetch('/api/stats').then(r=>r.json()).then(s=>{document.getElementById('sA').textContent=(s.totale||0).toLocaleString('it');document.getElementById('sO').textContent=(s.in_corso||0).toLocaleString('it');document.getElementById('sW').textContent=(s.aggiudicati||0).toLocaleString('it');ld(1)});
+fetch('/api/stats').then(r=>r.json()).then(s=>{document.getElementById('sA').textContent=(s.totale||0).toLocaleString('it');document.getElementById('sO').textContent=(s.in_corso||0).toLocaleString('it');document.getElementById('sW').textContent=(s.aggiudicati||0).toLocaleString('it');if(s.ultimo_sync){const d=new Date(s.ultimo_sync);const fmt=d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});document.getElementById('syncInfo').textContent='Ultimo sync: '+fmt+' ('+s.risorse_sync+' risorse)';}else{document.getElementById('syncInfo').textContent='Ultimo sync: mai effettuato';}ld(1)});
 function rc(){document.getElementById('kwC').innerHTML=kws.map(k=>`<span class="kw-chip">${k}<span class="x" onclick="rk('${k}')">×</span></span>`).join('')}
 function addKw(k){k=k.trim().toUpperCase();if(k&&!kws.includes(k)){kws.push(k);rc();ld(1)}document.getElementById('kwInput').value=''}
 function rk(k){kws=kws.filter(x=>x!==k);rc();ld(1)}
