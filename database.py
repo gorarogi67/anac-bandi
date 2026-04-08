@@ -167,13 +167,24 @@ def log_sync(resource_name, dataset, url, file_size, records_imported):
     conn.close()
 
 
-def is_already_synced(resource_name: str) -> bool:
+def is_already_synced(resource_name: str, max_age_hours: int = 20) -> bool:
+    """Considera già sincronizzata solo se scaricata nelle ultime max_age_hours ore."""
     conn = get_conn()
     row = conn.execute(
-        "SELECT 1 FROM sync_log WHERE resource_name = ?", (resource_name,)
+        "SELECT download_date FROM sync_log WHERE resource_name = ?", (resource_name,)
     ).fetchone()
     conn.close()
-    return row is not None
+    if row is None:
+        return False
+    try:
+        from datetime import timezone
+        synced_at = datetime.fromisoformat(row[0])
+        if synced_at.tzinfo is None:
+            synced_at = synced_at.replace(tzinfo=timezone.utc)
+        age_hours = (datetime.now(timezone.utc) - synced_at).total_seconds() / 3600
+        return age_hours < max_age_hours
+    except Exception:
+        return False
 
 
 def get_sync_log() -> List[Dict]:
