@@ -176,6 +176,7 @@
 <div class="card" id="albiCard">
 <div class="map-toggle" onclick="toggleAlbi()"><span>📋 Traccia Albi Fornitori — Affidamenti Diretti</span><span class="map-toggle-arrow" id="albiArrow">▼</span></div>
 <div id="albiInner">
+  <div id="albiLoading" style="display:none;text-align:center;padding:24px;color:#888;font-size:13px"><span class="loader"></span> &nbsp;Caricamento in corso...</div>
   <div class="albi-filter">
     <span style="font-size:12px;color:#888;font-weight:600">Filtra:</span>
     <button class="albi-filter-btn active" onclick="setAlboFilter('TUTTI',this)">Tutti</button>
@@ -289,12 +290,16 @@ function setAlboFilter(f,btn){
 }
 function ldAlbi(){
   if(!albiVisible)return;
+  document.getElementById('albiLoading').style.display='block';
+  document.getElementById('albiTb').innerHTML='';
+  document.getElementById('albiCount').textContent='';
   const params=new URLSearchParams({
     keywords:kws.join(','),
     kw_mode:kwMode,
     anni:[...selectedAnni].join(','),
   });
   fetch('/api/albi?'+params).then(r=>r.json()).then(data=>{
+    document.getElementById('albiLoading').style.display='none';
     albiData=data;
     renderAlbi();
   });
