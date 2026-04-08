@@ -201,7 +201,6 @@ def delete_old_records(anno_minimo: int = 2025) -> int:
         "DELETE FROM bandi WHERE CAST(anno_pubblicazione AS INTEGER) < ?", (anno_minimo,)
     )
     deleted = cur.rowcount
-    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     conn.commit()
     conn.close()
     log.info(f"Eliminati {deleted:,} record precedenti al {anno_minimo}")
