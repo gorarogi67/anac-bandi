@@ -177,10 +177,17 @@ def sync(force=False):
     saltate = 0
     totale_importati = 0
 
+    anno_corrente = str(datetime.now().year)
+
     for r in risorse:
         nome = r["name"]
 
-        if not force and is_already_synced(nome):
+        # Risorse di anni passati: skip permanente (non cambieranno più)
+        # Risorse dell'anno corrente o delta: ricontrolla ogni 20h
+        is_current = anno_corrente in nome or r["dataset"] == DATASET_CIG_DELTA
+        max_age = 20 if is_current else 999999
+
+        if not force and is_already_synced(nome, max_age_hours=max_age):
             log.info(f"  [{nome}] già sincronizzato, salto")
             saltate += 1
             continue
