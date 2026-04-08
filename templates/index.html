@@ -86,6 +86,17 @@
         .chart-box{background:#f8fafc;border-radius:8px;padding:14px}
         .chart-box h3{font-size:12px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:10px}
         @media(max-width:768px){.charts-grid{grid-template-columns:1fr}}
+        .chart-tabs{display:flex;gap:4px;padding:12px 16px 0;border-bottom:2px solid #e5e7eb;flex-wrap:wrap}
+        .chart-tab{padding:7px 16px;font-size:12px;font-weight:600;color:#888;cursor:pointer;border-radius:6px 6px 0 0;border:none;background:none;transition:all .1s}
+        .chart-tab:hover{color:#2563eb;background:#f0f4ff}
+        .chart-tab.active{color:#2563eb;background:#fff;border:2px solid #e5e7eb;border-bottom:2px solid #fff;margin-bottom:-2px}
+        .chart-panel{display:none;padding:16px}
+        .chart-panel.active{display:block}
+        .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+        .kpi-card{background:#f8fafc;border-radius:8px;padding:14px;text-align:center}
+        .kpi-val{font-size:22px;font-weight:700;color:#1e40af}
+        .kpi-lbl{font-size:11px;color:#888;margin-top:3px;font-weight:600;text-transform:uppercase}
+        @media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
 
         /* ── Tablet (< 1024px) ── */
         @media (max-width:1024px){
@@ -164,11 +175,60 @@
 <div class="card" id="chartsCard">
 <div class="map-toggle" onclick="toggleCharts()"><span>📊 Statistiche gare filtrate</span><span class="map-toggle-arrow" id="chartsArrow">▼</span></div>
 <div id="chartsInner">
-  <div class="charts-grid">
-    <div class="chart-box"><h3>Gare per anno</h3><canvas id="cAnno"></canvas></div>
-    <div class="chart-box"><h3>Distribuzione esiti</h3><canvas id="cEsiti"></canvas></div>
-    <div class="chart-box"><h3>Top 10 province (n° gare)</h3><canvas id="cProvince"></canvas></div>
-    <div class="chart-box"><h3>Top 10 stazioni appaltanti</h3><canvas id="cSA"></canvas></div>
+  <div id="chartsLoading" style="text-align:center;padding:24px;color:#888;font-size:13px"><span class="loader"></span> &nbsp;Caricamento statistiche...</div>
+  <div id="chartsContent" style="display:none">
+    <!-- Tab bar -->
+    <div class="chart-tabs">
+      <button class="chart-tab active" onclick="switchTab('panoramica',this)">Panoramica</button>
+      <button class="chart-tab" onclick="switchTab('importi',this)">Importi</button>
+      <button class="chart-tab" onclick="switchTab('procedure',this)">Procedure</button>
+      <button class="chart-tab" onclick="switchTab('tendenze',this)">Tendenze</button>
+      <button class="chart-tab" onclick="switchTab('topn',this)">Top N</button>
+    </div>
+
+    <!-- PANORAMICA -->
+    <div class="chart-panel active" id="tab-panoramica">
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="charts-grid">
+        <div class="chart-box"><h3>Gare per anno</h3><canvas id="cAnno"></canvas></div>
+        <div class="chart-box"><h3>Distribuzione esiti</h3><canvas id="cEsiti"></canvas></div>
+      </div>
+    </div>
+
+    <!-- IMPORTI -->
+    <div class="chart-panel" id="tab-importi">
+      <div class="charts-grid">
+        <div class="chart-box"><h3>Importo totale per anno (€)</h3><canvas id="cAnnoImp"></canvas></div>
+        <div class="chart-box"><h3>Distribuzione per fascia importo</h3><canvas id="cFasce"></canvas></div>
+        <div class="chart-box"><h3>Top 10 province per importo</h3><canvas id="cProvImp"></canvas></div>
+        <div class="chart-box"><h3>Top 10 SA per importo</h3><canvas id="cSAImp"></canvas></div>
+      </div>
+    </div>
+
+    <!-- PROCEDURE -->
+    <div class="chart-panel" id="tab-procedure">
+      <div class="charts-grid">
+        <div class="chart-box"><h3>Categoria merceologica</h3><canvas id="cCategorie"></canvas></div>
+        <div class="chart-box"><h3>Tipo procedura</h3><canvas id="cProcedure"></canvas></div>
+        <div class="chart-box" style="grid-column:span 2"><h3>Top 10 CPV (settori merceologici)</h3><canvas id="cCPV" style="max-height:280px"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TENDENZE -->
+    <div class="chart-panel" id="tab-tendenze">
+      <div class="charts-grid">
+        <div class="chart-box" style="grid-column:span 2"><h3>Trend mensile — numero gare (ultimi 24 mesi)</h3><canvas id="cMensileN" style="max-height:220px"></canvas></div>
+        <div class="chart-box" style="grid-column:span 2"><h3>Trend mensile — importo totale (ultimi 24 mesi)</h3><canvas id="cMensileImp" style="max-height:220px"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TOP N -->
+    <div class="chart-panel" id="tab-topn">
+      <div class="charts-grid">
+        <div class="chart-box"><h3>Top 10 province (n° gare)</h3><canvas id="cProvince"></canvas></div>
+        <div class="chart-box"><h3>Top 10 stazioni appaltanti (n° gare)</h3><canvas id="cSA"></canvas></div>
+      </div>
+    </div>
   </div>
 </div>
 </div>
@@ -382,18 +442,64 @@ function mkDoughnut(id,labels,data){
   });
 }
 function fmtM(v){if(v>=1e9)return(v/1e9).toFixed(1)+'Mrd';if(v>=1e6)return(v/1e6).toFixed(1)+'M';if(v>=1e3)return(v/1e3).toFixed(0)+'K';return v.toFixed(0);}
+function mkLine(id,labels,data,label,color){
+  destroyChart(id);
+  chartInstances[id]=new Chart(document.getElementById(id),{
+    type:'line',
+    data:{labels,datasets:[{label,data,borderColor:color,backgroundColor:color+'22',fill:true,tension:.3,pointRadius:3,borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>fmtM(v)}},x:{ticks:{font:{size:10},maxRotation:45}}}}
+  });
+}
+function switchTab(name,btn){
+  document.querySelectorAll('.chart-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.chart-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
 function ldCharts(){
   if(!chartsVisible)return;
+  document.getElementById('chartsLoading').style.display='block';
+  document.getElementById('chartsContent').style.display='none';
   const params=new URLSearchParams(gp());
   fetch('/api/chartsdata?'+params).then(r=>r.json()).then(d=>{
-    // Trend anno
+    document.getElementById('chartsLoading').style.display='none';
+    document.getElementById('chartsContent').style.display='block';
+
+    // ── KPI cards ──
+    const kpi=d.kpi||{};
+    document.getElementById('kpiGrid').innerHTML=`
+      <div class="kpi-card"><div class="kpi-val">${(kpi.n||0).toLocaleString('it')}</div><div class="kpi-lbl">Gare totali</div></div>
+      <div class="kpi-card"><div class="kpi-val">${fmtM(kpi.tot||0)}</div><div class="kpi-lbl">Importo totale</div></div>
+      <div class="kpi-card"><div class="kpi-val">${fmtM(kpi.media||0)}</div><div class="kpi-lbl">Importo medio</div></div>
+      <div class="kpi-card"><div class="kpi-val">${(kpi.sa_attive||0).toLocaleString('it')}</div><div class="kpi-lbl">SA attive</div></div>`;
+
+    // ── Panoramica ──
     mkBar('cAnno',d.anni.map(r=>r.anno),d.anni.map(r=>r.n),'Gare','#2563eb');
-    // Esiti doughnut
     mkDoughnut('cEsiti',d.esiti.map(r=>r.esito),d.esiti.map(r=>r.n));
-    // Top province
+
+    // ── Importi ──
+    mkBar('cAnnoImp',d.anni.map(r=>r.anno),d.anni.map(r=>r.tot),'Importo €','#0891b2');
+    const fasce_ord=['< 40K','40K–150K','150K–1M','1M–5M','> 5M'];
+    const fasceMap=Object.fromEntries((d.fasce||[]).map(r=>[r.fascia,r.n]));
+    mkBar('cFasce',fasce_ord,fasce_ord.map(f=>fasceMap[f]||0),'Gare','#f59e0b');
+    const provImp=[...d.province].sort((a,b)=>a.tot-b.tot);
+    mkHBar('cProvImp',provImp.map(r=>r.provincia),provImp.map(r=>r.tot),'Importo €','#0891b2');
+    const saImp=[...d.sa].sort((a,b)=>a.tot-b.tot);
+    mkHBar('cSAImp',saImp.map(r=>r.sa.length>35?r.sa.substring(0,33)+'…':r.sa),saImp.map(r=>r.tot),'Importo €','#7c3aed');
+
+    // ── Procedure ──
+    mkDoughnut('cCategorie',(d.categorie||[]).map(r=>r.cat),(d.categorie||[]).map(r=>r.n));
+    mkDoughnut('cProcedure',(d.procedure||[]).map(r=>r.proc.length>30?r.proc.substring(0,28)+'…':r.proc),(d.procedure||[]).map(r=>r.n));
+    const cpv=[...(d.cpv||[])].reverse();
+    mkHBar('cCPV',cpv.map(r=>r.cpv.length>50?r.cpv.substring(0,48)+'…':r.cpv),cpv.map(r=>r.n),'Gare','#10b981');
+
+    // ── Tendenze ──
+    mkLine('cMensileN',(d.mensile||[]).map(r=>r.ym),(d.mensile||[]).map(r=>r.n),'Gare','#2563eb');
+    mkLine('cMensileImp',(d.mensile||[]).map(r=>r.ym),(d.mensile||[]).map(r=>r.tot),'Importo €','#0891b2');
+
+    // ── Top N ──
     const prov=[...d.province].reverse();
     mkHBar('cProvince',prov.map(r=>r.provincia),prov.map(r=>r.n),'Gare','#059669');
-    // Top SA — troncati per leggibilità
     const sa=[...d.sa].reverse();
     mkHBar('cSA',sa.map(r=>r.sa.length>35?r.sa.substring(0,33)+'…':r.sa),sa.map(r=>r.n),'Gare','#7c3aed');
   });

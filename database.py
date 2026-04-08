@@ -386,19 +386,103 @@ def query_bandi_charts(filters: dict = None) -> Dict:
 
     # Top 10 stazioni appaltanti
     sa = q(f"""
-        SELECT denominazione_amministrazione_appaltante as sa, COUNT(*) as n
+        SELECT denominazione_amministrazione_appaltante as sa, COUNT(*) as n,
+               SUM(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != ''
+                   THEN CAST(importo_lotto AS REAL) ELSE 0 END) as tot
         FROM bandi WHERE {where_sql}
           AND denominazione_amministrazione_appaltante IS NOT NULL
           AND denominazione_amministrazione_appaltante != ''
         GROUP BY denominazione_amministrazione_appaltante ORDER BY n DESC LIMIT 10
     """)
 
+    # Trend mensile (anno-mese, ultimi 24 mesi)
+    mensile = q(f"""
+        SELECT anno_pubblicazione || '-' || printf('%02d', CAST(mese_pubblicazione AS INTEGER)) as ym,
+               COUNT(*) as n,
+               SUM(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != ''
+                   THEN CAST(importo_lotto AS REAL) ELSE 0 END) as tot
+        FROM bandi WHERE {where_sql}
+          AND anno_pubblicazione IS NOT NULL AND anno_pubblicazione != ''
+          AND mese_pubblicazione IS NOT NULL AND mese_pubblicazione != ''
+        GROUP BY ym ORDER BY ym DESC LIMIT 24
+    """)
+    mensile = list(reversed(mensile))
+
+    # Distribuzione per categoria merceologica (Lavori/Servizi/Forniture)
+    categorie = q(f"""
+        SELECT COALESCE(NULLIF(oggetto_principale_contratto,''), 'N/D') as cat,
+               COUNT(*) as n,
+               SUM(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != ''
+                   THEN CAST(importo_lotto AS REAL) ELSE 0 END) as tot
+        FROM bandi WHERE {where_sql}
+        GROUP BY cat ORDER BY n DESC LIMIT 10
+    """)
+
+    # Distribuzione per tipo procedura
+    procedure = q(f"""
+        SELECT COALESCE(NULLIF(tipo_scelta_contraente,''), 'N/D') as proc,
+               COUNT(*) as n
+        FROM bandi WHERE {where_sql}
+        GROUP BY proc ORDER BY n DESC LIMIT 10
+    """)
+
+    # Distribuzione importi per fascia
+    fasce = q(f"""
+        SELECT
+          CASE
+            WHEN CAST(importo_lotto AS REAL) < 40000       THEN '< 40K'
+            WHEN CAST(importo_lotto AS REAL) < 150000      THEN '40K–150K'
+            WHEN CAST(importo_lotto AS REAL) < 1000000     THEN '150K–1M'
+            WHEN CAST(importo_lotto AS REAL) < 5000000     THEN '1M–5M'
+            ELSE '> 5M'
+          END as fascia,
+          COUNT(*) as n,
+          SUM(CAST(importo_lotto AS REAL)) as tot
+        FROM bandi WHERE {where_sql}
+          AND importo_lotto IS NOT NULL AND importo_lotto != ''
+          AND CAST(importo_lotto AS REAL) > 0
+        GROUP BY fascia
+        ORDER BY MIN(CAST(importo_lotto AS REAL))
+    """)
+
+    # Top 10 CPV
+    cpv = q(f"""
+        SELECT COALESCE(NULLIF(descrizione_cpv,''), cod_cpv) as cpv,
+               COUNT(*) as n
+        FROM bandi WHERE {where_sql}
+          AND (descrizione_cpv IS NOT NULL AND descrizione_cpv != ''
+               OR cod_cpv IS NOT NULL AND cod_cpv != '')
+        GROUP BY cpv ORDER BY n DESC LIMIT 10
+    """)
+
+    # KPI sintetici
+    kpi_row = conn.execute(f"""
+        SELECT COUNT(*) as n,
+               SUM(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != ''
+                   THEN CAST(importo_lotto AS REAL) ELSE 0 END) as tot,
+               AVG(CASE WHEN importo_lotto IS NOT NULL AND importo_lotto != '' AND CAST(importo_lotto AS REAL) > 0
+                   THEN CAST(importo_lotto AS REAL) END) as media,
+               COUNT(DISTINCT cf_amministrazione_appaltante) as sa_attive
+        FROM bandi WHERE {where_sql}
+    """, params).fetchone()
+
     conn.close()
     return {
-        "anni":     [{"anno": r[0], "n": r[1], "tot": r[2]} for r in anni],
-        "esiti":    [{"esito": r[0], "n": r[1]} for r in esiti],
-        "province": [{"provincia": r[0], "n": r[1], "tot": r[2]} for r in province],
-        "sa":       [{"sa": r[0], "n": r[1]} for r in sa],
+        "anni":      [{"anno": r[0], "n": r[1], "tot": r[2]} for r in anni],
+        "esiti":     [{"esito": r[0], "n": r[1]} for r in esiti],
+        "province":  [{"provincia": r[0], "n": r[1], "tot": r[2]} for r in province],
+        "sa":        [{"sa": r[0], "n": r[1], "tot": r[2]} for r in sa],
+        "mensile":   [{"ym": r[0], "n": r[1], "tot": r[2]} for r in mensile],
+        "categorie": [{"cat": r[0], "n": r[1], "tot": r[2]} for r in categorie],
+        "procedure": [{"proc": r[0], "n": r[1]} for r in procedure],
+        "fasce":     [{"fascia": r[0], "n": r[1], "tot": r[2]} for r in fasce],
+        "cpv":       [{"cpv": r[0], "n": r[1]} for r in cpv],
+        "kpi": {
+            "n": kpi_row[0] or 0,
+            "tot": kpi_row[1] or 0,
+            "media": kpi_row[2] or 0,
+            "sa_attive": kpi_row[3] or 0,
+        },
     }
 
 
