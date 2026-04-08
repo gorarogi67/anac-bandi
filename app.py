@@ -230,6 +230,52 @@ def api_mapdata():
     return jsonify(result)
 
 
+@app.route("/api/reset-db")
+def api_reset_db():
+    """Azzera il DB e ripristina solo albi_fornitori (protetto da chiave)."""
+    key = request.args.get("key", "")
+    if key != SYNC_SECRET:
+        return jsonify({"error": "Chiave non valida"}), 403
+
+    from database import get_conn
+    from config import DB_PATH
+    import os
+
+    try:
+        # 1. Salva albi_fornitori in memoria
+        conn = get_conn()
+        albi = [dict(r) for r in conn.execute("SELECT * FROM albi_fornitori").fetchall()]
+        conn.close()
+
+        # 2. Cancella i file DB (inclusi WAL e SHM)
+        for ext in ["", "-wal", "-shm"]:
+            p = DB_PATH + ext
+            if os.path.exists(p):
+                os.remove(p)
+
+        # 3. Ricrea il DB vuoto
+        init_db()
+
+        # 4. Ripristina albi_fornitori
+        if albi:
+            conn = get_conn()
+            for r in albi:
+                conn.execute("""
+                    INSERT OR IGNORE INTO albi_fornitori
+                    (cf_sa, denominazione_sa, stato, note, data_aggiornamento)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (r["cf_sa"], r["denominazione_sa"], r["stato"], r["note"], r["data_aggiornamento"]))
+            conn.commit()
+            conn.close()
+
+        log.info(f"DB azzerato. Albi fornitori ripristinati: {len(albi)}")
+        return jsonify({"ok": True, "albi_ripristinati": len(albi)})
+
+    except Exception as e:
+        log.error(f"Reset DB fallito: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/sync")
 def api_sync():
     """Endpoint per lanciare sync manuale (protetto da chiave)."""
