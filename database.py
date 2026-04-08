@@ -77,6 +77,10 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_sa ON bandi(denominazione_amministrazione_appaltante);
         CREATE INDEX IF NOT EXISTS idx_data_pub ON bandi(data_pubblicazione);
         CREATE INDEX IF NOT EXISTS idx_tipo_sc ON bandi(cod_tipo_scelta_contraente);
+        CREATE INDEX IF NOT EXISTS idx_anno_esito ON bandi(anno_pubblicazione, esito);
+        CREATE INDEX IF NOT EXISTS idx_anno_scad ON bandi(anno_pubblicazione, data_scadenza_offerta);
+        CREATE INDEX IF NOT EXISTS idx_scad ON bandi(data_scadenza_offerta);
+        CREATE INDEX IF NOT EXISTS idx_com_esito ON bandi(data_comunicazione_esito);
 
         CREATE TABLE IF NOT EXISTS albi_fornitori (
             cf_sa TEXT PRIMARY KEY,

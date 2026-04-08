@@ -141,6 +141,27 @@ def api_stats():
     return jsonify(stats)
 
 
+@app.route("/api/reindex")
+def api_reindex():
+    """Crea indici mancanti sul DB esistente (protetto da chiave)."""
+    key = request.args.get("key", "")
+    if key != SYNC_SECRET:
+        return jsonify({"error": "Chiave non valida"}), 403
+    from database import get_conn
+    conn = get_conn()
+    idxs = [
+        "CREATE INDEX IF NOT EXISTS idx_anno_esito ON bandi(anno_pubblicazione, esito)",
+        "CREATE INDEX IF NOT EXISTS idx_anno_scad ON bandi(anno_pubblicazione, data_scadenza_offerta)",
+        "CREATE INDEX IF NOT EXISTS idx_scad ON bandi(data_scadenza_offerta)",
+        "CREATE INDEX IF NOT EXISTS idx_com_esito ON bandi(data_comunicazione_esito)",
+    ]
+    for sql in idxs:
+        conn.execute(sql)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "indici": len(idxs)})
+
+
 # Coordinate centroidi province italiane (nome completo maiuscolo → lat, lng)
 PROVINCE_COORDS = {
     "AGRIGENTO":(37.318,13.577),"ALESSANDRIA":(44.912,8.613),"ANCONA":(43.616,13.519),

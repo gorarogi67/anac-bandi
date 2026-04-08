@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import List, Dict
 
 from config import CKAN_API, HEADERS, DATA_DIR, DB_PATH, DATASET_CIG_DELTA, DATASET_CIG_ANNUALE, ANNO_INIZIO
-from database import init_db, bulk_upsert, log_sync, is_already_synced, get_sync_log, count_bandi, delete_old_records
+from database import init_db, bulk_upsert, log_sync, is_already_synced, get_sync_log, count_bandi
 
 logging.basicConfig(
     level=logging.INFO,
@@ -166,10 +166,6 @@ def sync(force=False):
     log.info("=" * 60)
 
     init_db()
-
-    # Pulizia record pre-2025 (libera spazio su disco)
-    log.info("Pulizia record precedenti al 2025...")
-    delete_old_records(anno_minimo=2025)
 
     log.info("Scoperta risorse via API CKAN...")
     risorse = scopri_risorse()
