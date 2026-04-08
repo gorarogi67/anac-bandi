@@ -25,7 +25,7 @@ HEADERS = {
 # Dataset
 DATASET_CIG_DELTA = "cig"
 DATASET_CIG_ANNUALE = "cig-{anno}"
-ANNO_INIZIO = int(os.environ.get("ANNO_INIZIO", "2024"))
+ANNO_INIZIO = int(os.environ.get("ANNO_INIZIO", "2025"))
 
 # Keywords di default per l'interfaccia
 KEYWORDS_DEFAULT = os.environ.get("KEYWORDS", "CARRELLATI,CASSONETTI,BIDONI").split(",")

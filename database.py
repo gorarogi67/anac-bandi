@@ -194,6 +194,20 @@ def get_sync_log() -> List[Dict]:
     return [dict(r) for r in rows]
 
 
+def delete_old_records(anno_minimo: int = 2025) -> int:
+    """Elimina dal DB tutti i record con anno_pubblicazione < anno_minimo."""
+    conn = get_conn()
+    cur = conn.execute(
+        "DELETE FROM bandi WHERE CAST(anno_pubblicazione AS INTEGER) < ?", (anno_minimo,)
+    )
+    deleted = cur.rowcount
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    conn.commit()
+    conn.close()
+    log.info(f"Eliminati {deleted:,} record precedenti al {anno_minimo}")
+    return deleted
+
+
 def count_bandi() -> int:
     conn = get_conn()
     n = conn.execute("SELECT COUNT(*) FROM bandi").fetchone()[0]
