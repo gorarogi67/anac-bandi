@@ -78,7 +78,7 @@ def index():
     init_db()
     return render_template("index.html",
         filtri=get_filtri_disponibili(), totale=count_bandi(),
-        keywords_default=KEYWORDS_DEFAULT)
+        keywords_default=KEYWORDS_DEFAULT, sync_secret=SYNC_SECRET)
 
 
 @app.route("/api/bandi")
