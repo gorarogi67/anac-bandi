@@ -304,7 +304,11 @@ def api_import_records():
     if key != SYNC_SECRET:
         return jsonify({"error": "Chiave non valida"}), 403
 
-    data = request.get_json(force=True)
+    import gzip as _gzip, json as _json
+    raw = request.data
+    if request.headers.get("Content-Encoding") == "gzip":
+        raw = _gzip.decompress(raw)
+    data = _json.loads(raw)
     records = data.get("records", [])
     fonte = data.get("fonte", "push_locale")
 

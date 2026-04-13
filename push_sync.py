@@ -12,6 +12,8 @@ Configura RAILWAY_URL nel file .env oppure come variabile d'ambiente:
 
 import sqlite3
 import requests
+import gzip
+import json
 import os
 import sys
 import logging
@@ -27,7 +29,7 @@ log = logging.getLogger(__name__)
 
 # ── Configurazione ──
 RAILWAY_URL = os.environ.get("RAILWAY_URL", "").rstrip("/")
-BATCH_SIZE = 5000
+BATCH_SIZE = 2000
 LAST_PUSH_FILE = os.path.join(DATA_DIR, "last_push.txt")
 
 
@@ -87,10 +89,12 @@ def push():
         log.info(f"  Batch {batch_num}: invio {len(records):,} record ({offset:,}–{offset+len(records):,} di {count:,})...")
 
         try:
+            payload = gzip.compress(json.dumps({"records": records, "fonte": "push_locale"}).encode("utf-8"))
             r = requests.post(
                 f"{RAILWAY_URL}/api/import-records",
                 params={"key": SYNC_SECRET},
-                json={"records": records, "fonte": "push_locale"},
+                data=payload,
+                headers={"Content-Encoding": "gzip", "Content-Type": "application/json"},
                 timeout=180,
             )
         except requests.exceptions.RequestException as e:
