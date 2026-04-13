@@ -33,11 +33,27 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# Session condivisa: mantiene cookie di sessione ottenuti visitando il sito
+_session = None
+
+def get_session() -> requests.Session:
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        _session.headers.update(HEADERS)
+        try:
+            log.info("Inizializzazione sessione HTTP (warm-up cookie)...")
+            r = _session.get("https://dati.anticorruzione.it/opendata/", timeout=30)
+            log.info(f"  Warm-up: status={r.status_code}, cookie={list(r.cookies.keys())}")
+        except Exception as e:
+            log.warning(f"  Warm-up fallito (continuo comunque): {e}")
+    return _session
+
 
 def ckan_get(action, params=None):
     url = f"{CKAN_API}/{action}"
     try:
-        r = requests.get(url, params=params, headers=HEADERS, timeout=60)
+        r = get_session().get(url, params=params, timeout=60)
         ct = r.headers.get("Content-Type", "")
         if r.status_code == 200 and "json" in ct:
             body = r.json()
@@ -118,7 +134,7 @@ def _url_diretti_fallback() -> List[dict]:
 
 def scarica(url: str) -> bytes | None:
     try:
-        r = requests.get(url, headers=HEADERS, timeout=300, stream=True)
+        r = get_session().get(url, timeout=300, stream=True)
         if r.status_code == 404:
             log.debug(f"  404 — non esiste: ...{url[-50:]}")
             return None
