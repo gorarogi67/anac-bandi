@@ -125,9 +125,15 @@ class PushSyncApp:
 
         tk.Label(cfg_frame, text="Railway URL:", font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w", padx=(0, 8))
         self.url_var = tk.StringVar(value=self.cfg.get("railway_url", ""))
-        url_entry = ttk.Entry(cfg_frame, textvariable=self.url_var, width=55, font=("Segoe UI", 9))
+        url_entry = ttk.Entry(cfg_frame, textvariable=self.url_var, width=50, font=("Segoe UI", 9))
         url_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
-        ttk.Button(cfg_frame, text="Salva", command=self._save_url, width=8).grid(row=0, column=2)
+
+        tk.Label(cfg_frame, text="Chiave API:", font=("Segoe UI", 9)).grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(6, 0))
+        self.key_var = tk.StringVar(value=self.cfg.get("sync_secret", ""))
+        key_entry = ttk.Entry(cfg_frame, textvariable=self.key_var, width=20, font=("Segoe UI", 9), show="*")
+        key_entry.grid(row=1, column=1, sticky="w", padx=(0, 8), pady=(6, 0))
+
+        ttk.Button(cfg_frame, text="Salva", command=self._save_url, width=8).grid(row=0, column=2, rowspan=2)
         cfg_frame.columnconfigure(1, weight=1)
 
         # ── Stato ──
@@ -234,9 +240,11 @@ class PushSyncApp:
 
     def _save_url(self):
         url = self.url_var.get().strip().rstrip("/")
+        key = self.key_var.get().strip()
         self.cfg["railway_url"] = url
+        self.cfg["sync_secret"] = key
         save_config(self.cfg)
-        self.status_var.set(f"URL salvato: {url}")
+        self.status_var.set(f"Configurazione salvata")
 
     def _set_buttons_state(self, enabled: bool):
         state = "normal" if enabled else "disabled"
@@ -258,6 +266,7 @@ class PushSyncApp:
             return
         self._save_url()
         os.environ["RAILWAY_URL"] = url
+        os.environ["SYNC_SECRET"] = self.key_var.get().strip()
         self._running = True
         self._set_buttons_state(False)
         self.progress.start(10)

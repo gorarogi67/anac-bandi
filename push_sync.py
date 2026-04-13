@@ -19,7 +19,7 @@ import sys
 import logging
 from datetime import datetime
 
-from config import DB_PATH, SYNC_SECRET, DATA_DIR
+from config import DB_PATH, DATA_DIR
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 
 # ── Configurazione ──
 RAILWAY_URL = os.environ.get("RAILWAY_URL", "").rstrip("/")
+SYNC_SECRET = os.environ.get("SYNC_SECRET", os.environ.get("PUSH_KEY", ""))
 BATCH_SIZE = 100
 LAST_PUSH_FILE = os.path.join(DATA_DIR, "last_push.txt")
 
