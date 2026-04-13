@@ -43,8 +43,11 @@ def ckan_get(action, params=None):
             body = r.json()
             if body.get("success"):
                 return body["result"]
+            log.warning(f"API {action}: success=false — {body.get('error')}")
+        elif r.status_code == 403:
+            log.warning(f"API {action}: 403 Forbidden (WAF/IP block) — la scoperta risorsa via CKAN non è disponibile")
         else:
-            log.warning(f"API {action}: status={r.status_code} type={ct} body={r.text[:200]}")
+            log.warning(f"API {action}: status={r.status_code} type={ct}")
         return None
     except Exception as e:
         log.warning(f"API {action}: {e}")
@@ -103,7 +106,8 @@ def _url_diretti_fallback() -> List[dict]:
 
     # Dataset annuali (ogni mese, dal più recente)
     for a in range(anno, ANNO_INIZIO - 1, -1):
-        for m in range(1, 13):
+        max_m = mese if a == anno else 12  # non generare mesi futuri per l'anno corrente
+        for m in range(1, max_m + 1):
             name = f"cig_csv_{a}_{m:02d}"
             url = f"{BASE}/cig-{a}/filesystem/{name}.zip"
             risorse.append({"dataset": f"cig-{a}", "name": name, "url": url})
@@ -117,6 +121,9 @@ def scarica(url: str) -> bytes | None:
         r = requests.get(url, headers=HEADERS, timeout=300, stream=True)
         if r.status_code == 404:
             log.debug(f"  404 — non esiste: ...{url[-50:]}")
+            return None
+        if r.status_code == 403:
+            log.warning(f"  403 Forbidden (WAF/IP block?) — ...{url[-60:]}")
             return None
         r.raise_for_status()
         chunks = []
