@@ -297,6 +297,26 @@ def api_reset_db():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/import-records", methods=["POST"])
+def api_import_records():
+    """Riceve record dal PC locale e li importa nel DB (protetto da chiave)."""
+    key = request.args.get("key", "")
+    if key != SYNC_SECRET:
+        return jsonify({"error": "Chiave non valida"}), 403
+
+    data = request.get_json(force=True)
+    records = data.get("records", [])
+    fonte = data.get("fonte", "push_locale")
+
+    if not records:
+        return jsonify({"ok": True, "importati": 0})
+
+    from database import bulk_upsert
+    n = bulk_upsert(records, fonte=fonte)
+    log.info(f"import-records: {n} record importati da {fonte}")
+    return jsonify({"ok": True, "importati": n})
+
+
 @app.route("/api/sync")
 def api_sync():
     """Endpoint per lanciare sync manuale (protetto da chiave)."""
