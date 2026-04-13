@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 
 # ── Configurazione ──
 RAILWAY_URL = os.environ.get("RAILWAY_URL", "").rstrip("/")
-BATCH_SIZE = 2000
+BATCH_SIZE = 100
 LAST_PUSH_FILE = os.path.join(DATA_DIR, "last_push.txt")
 
 
@@ -88,19 +88,27 @@ def push():
         records = [dict(r) for r in rows]
         log.info(f"  Batch {batch_num}: invio {len(records):,} record ({offset:,}–{offset+len(records):,} di {count:,})...")
 
-        try:
-            payload = gzip.compress(json.dumps({"records": records, "fonte": "push_locale"}).encode("utf-8"))
-            r = requests.post(
-                f"{RAILWAY_URL}/api/import-records",
-                params={"key": SYNC_SECRET},
-                data=payload,
-                headers={"Content-Encoding": "gzip", "Content-Type": "application/json"},
-                timeout=180,
-            )
-        except requests.exceptions.RequestException as e:
-            log.error(f"  Errore connessione: {e}")
-            conn.close()
-            sys.exit(1)
+        payload = gzip.compress(json.dumps({"records": records, "fonte": "push_locale"}).encode("utf-8"))
+        log.info(f"    Payload compresso: {len(payload) // 1024} KB")
+
+        r = None
+        for attempt in range(1, 4):
+            try:
+                r = requests.post(
+                    f"{RAILWAY_URL}/api/import-records",
+                    params={"key": SYNC_SECRET},
+                    data=payload,
+                    headers={"Content-Encoding": "gzip", "Content-Type": "application/json"},
+                    timeout=180,
+                )
+                break
+            except requests.exceptions.RequestException as e:
+                log.warning(f"  Tentativo {attempt}/3 fallito: {e}")
+                if attempt == 3:
+                    log.error("  Troppi errori consecutivi, interruzione.")
+                    conn.close()
+                    sys.exit(1)
+                import time; time.sleep(3 * attempt)
 
         if r.status_code != 200:
             log.error(f"  Errore HTTP {r.status_code}: {r.text[:300]}")
