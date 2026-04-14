@@ -83,8 +83,6 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_scad ON bandi(data_scadenza_offerta);
         CREATE INDEX IF NOT EXISTS idx_com_esito ON bandi(data_comunicazione_esito);
 
-        CREATE INDEX IF NOT EXISTS idx_tipo ON bandi(tipo);
-
         CREATE TABLE IF NOT EXISTS albi_fornitori (
             cf_sa TEXT PRIMARY KEY,
             denominazione_sa TEXT,
@@ -124,6 +122,12 @@ def init_db():
         log.info("Colonna 'tipo' aggiunta alla tabella bandi")
     except Exception:
         pass  # colonna già esistente
+
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tipo ON bandi(tipo)")
+        conn.commit()
+    except Exception:
+        pass
 
     conn.close()
     log.info(f"Database pronto: {DB_PATH}")
