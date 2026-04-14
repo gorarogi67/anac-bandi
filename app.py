@@ -321,6 +321,126 @@ def api_import_records():
     return jsonify({"ok": True, "importati": n})
 
 
+@app.route("/api/upload-db", methods=["POST"])
+def api_upload_db():
+    """Riceve il file DB SQLite completo (gzip) e sostituisce quello corrente.
+    Preserva la tabella albi_fornitori. Protetto da chiave."""
+    key = request.args.get("key", "")
+    if key != SYNC_SECRET:
+        return jsonify({"error": "Chiave non valida"}), 403
+
+    from database import get_conn
+    from config import DB_PATH
+    import gzip as _gzip
+    import os, shutil, sqlite3
+
+    new_path = DB_PATH + ".new"
+    try:
+        # 1. Backup albi_fornitori dal DB corrente
+        albi = []
+        try:
+            conn = get_conn()
+            albi = [dict(r) for r in conn.execute("SELECT * FROM albi_fornitori").fetchall()]
+            conn.close()
+        except Exception as e:
+            log.warning(f"upload-db: impossibile leggere albi_fornitori: {e}")
+
+        # 2. Ricevi gzip in streaming e scrivi decompresso su disco
+        if os.path.exists(new_path):
+            os.remove(new_path)
+        bytes_in = 0
+        bytes_out = 0
+        is_gzip = request.headers.get("Content-Encoding") == "gzip" or \
+                  request.args.get("gzip") == "1"
+        with open(new_path, "wb") as fout:
+            if is_gzip:
+                decomp = _gzip.decompressobj(32 + 15)
+                while True:
+                    chunk = request.stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    bytes_in += len(chunk)
+                    data = decomp.decompress(chunk)
+                    if data:
+                        fout.write(data)
+                        bytes_out += len(data)
+                tail = decomp.flush()
+                if tail:
+                    fout.write(tail)
+                    bytes_out += len(tail)
+            else:
+                while True:
+                    chunk = request.stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    fout.write(chunk)
+                    bytes_in += len(chunk)
+                    bytes_out = bytes_in
+
+        # 3. Verifica che sia un DB SQLite valido con la tabella bandi
+        try:
+            test = sqlite3.connect(new_path)
+            n = test.execute("SELECT COUNT(*) FROM bandi").fetchone()[0]
+            test.close()
+        except Exception as e:
+            os.remove(new_path)
+            return jsonify({"error": f"File non valido: {e}"}), 400
+
+        # 4. Rimuovi WAL/SHM del vecchio DB (saranno obsoleti dopo il replace)
+        for ext in ["-wal", "-shm"]:
+            p = DB_PATH + ext
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+
+        # 5. Swap atomico
+        os.replace(new_path, DB_PATH)
+
+        # 6. Ripristina albi_fornitori nel nuovo DB
+        ripristinati = 0
+        if albi:
+            conn = get_conn()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS albi_fornitori (
+                    cf_sa TEXT PRIMARY KEY,
+                    denominazione_sa TEXT,
+                    stato TEXT,
+                    note TEXT,
+                    data_aggiornamento TEXT
+                )
+            """)
+            for r in albi:
+                conn.execute("""
+                    INSERT OR REPLACE INTO albi_fornitori
+                    (cf_sa, denominazione_sa, stato, note, data_aggiornamento)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (r["cf_sa"], r["denominazione_sa"], r["stato"],
+                      r["note"], r["data_aggiornamento"]))
+            conn.commit()
+            conn.close()
+            ripristinati = len(albi)
+
+        log.info(f"upload-db: DB sostituito ({bytes_in:,} B ricevuti, "
+                 f"{bytes_out:,} B scritti, {n:,} bandi, "
+                 f"{ripristinati} albi ripristinati)")
+        return jsonify({
+            "ok": True,
+            "bytes_received": bytes_in,
+            "bytes_written": bytes_out,
+            "bandi": n,
+            "albi_ripristinati": ripristinati,
+        })
+
+    except Exception as e:
+        if os.path.exists(new_path):
+            try: os.remove(new_path)
+            except Exception: pass
+        log.error(f"upload-db fallito: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/sync")
 def api_sync():
     """Endpoint per lanciare sync manuale (protetto da chiave)."""
