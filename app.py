@@ -365,24 +365,31 @@ def api_upload_db_chunk():
 
 @app.route("/api/upload-db-finalize", methods=["POST"])
 def api_upload_db_finalize():
-    """Riassembla i chunk, decomprime gzip, sostituisce il DB preservando albi_fornitori."""
+    """Riassembla i chunk, decomprime in streaming, sostituisce il DB.
+
+    Strategia space-efficient (picco ~6.2 GB invece di ~10 GB):
+    1. Salva albi_fornitori
+    2. Elimina subito il vecchio DB (libera ~2-6 GB)
+    3. Decomprime i chunk in streaming direttamente nel nuovo DB
+       - elimina ogni chunk appena letto (libera 80 MB alla volta)
+       - nessun file .gz intermedio
+    4. Valida, swappa, ripristina albi
+    """
     key = request.args.get("key", "")
     if key != SYNC_SECRET:
         return jsonify({"error": "Chiave non valida"}), 403
 
     from database import get_conn
     from config import DB_PATH, DATA_DIR
-    import gzip as _gzip
-    import os, sqlite3
+    import zlib, os, sqlite3, shutil
 
-    upload_id  = request.args.get("upload_id", "default")
+    upload_id    = request.args.get("upload_id", "default")
     total_chunks = int(request.args.get("total_chunks", 0))
-    chunks_dir = os.path.join(DATA_DIR, f"upload_{upload_id}")
-    gz_path    = DB_PATH + ".upload.gz"
-    new_path   = DB_PATH + ".new"
+    chunks_dir   = os.path.join(DATA_DIR, f"upload_{upload_id}")
+    new_path     = DB_PATH + ".new"
 
     try:
-        # 1. Backup albi_fornitori
+        # 1. Backup albi_fornitori dal DB corrente
         albi = []
         try:
             conn = get_conn()
@@ -391,32 +398,39 @@ def api_upload_db_finalize():
         except Exception as e:
             log.warning(f"finalize: impossibile leggere albi_fornitori: {e}")
 
-        # 2. Riassembla chunks → file gzip
-        expected = sorted(range(total_chunks))
-        present  = sorted(int(f.split(".")[0]) for f in os.listdir(chunks_dir) if f.endswith(".bin"))
-        missing  = [i for i in expected if i not in present]
+        # 2. Verifica presenza di tutti i chunk
+        present = sorted(int(f.split(".")[0]) for f in os.listdir(chunks_dir) if f.endswith(".bin"))
+        missing = [i for i in range(total_chunks) if i not in present]
         if missing:
             return jsonify({"error": f"Chunk mancanti: {missing}"}), 400
 
-        log.info(f"finalize: riassemblo {total_chunks} chunk...")
-        with open(gz_path, "wb") as fout:
+        # 3. Elimina subito il DB corrente + WAL/SHM per liberare spazio
+        log.info("finalize: elimino DB corrente per fare spazio al nuovo...")
+        for p in [DB_PATH, DB_PATH + "-wal", DB_PATH + "-shm"]:
+            if os.path.exists(p):
+                try: os.remove(p)
+                except Exception: pass
+
+        # 4. Decomprimi i chunk in streaming direttamente nel nuovo DB
+        #    wbits=31 → gzip; ogni chunk viene eliminato appena letto
+        log.info(f"finalize: decomprimo {total_chunks} chunk in streaming → {new_path}...")
+        dec = zlib.decompressobj(wbits=31)
+        with open(new_path, "wb") as db_out:
             for i in range(total_chunks):
-                p = os.path.join(chunks_dir, f"{i:05d}.bin")
-                with open(p, "rb") as fin:
-                    fout.write(fin.read())
+                chunk_path = os.path.join(chunks_dir, f"{i:05d}.bin")
+                with open(chunk_path, "rb") as fin:
+                    raw = fin.read()
+                db_out.write(dec.decompress(raw))
+                try: os.remove(chunk_path)   # libera ~80 MB progressivamente
+                except Exception: pass
+            tail = dec.flush()
+            if tail:
+                db_out.write(tail)
 
-        # 3. Decomprimi gzip → nuovo DB
-        log.info("finalize: decomprimo gzip...")
-        bytes_out = 0
-        with _gzip.open(gz_path, "rb") as gz_in, open(new_path, "wb") as db_out:
-            while True:
-                block = gz_in.read(4 * 1024 * 1024)
-                if not block:
-                    break
-                db_out.write(block)
-                bytes_out += len(block)
+        bytes_out = os.path.getsize(new_path)
+        log.info(f"finalize: scritti {bytes_out:,} B ({bytes_out//(1024**3):.1f} GB)")
 
-        # 4. Valida il nuovo DB
+        # 5. Valida il nuovo DB
         try:
             test = sqlite3.connect(new_path)
             n = test.execute("SELECT COUNT(*) FROM bandi").fetchone()[0]
@@ -424,13 +438,6 @@ def api_upload_db_finalize():
         except Exception as e:
             os.remove(new_path)
             return jsonify({"error": f"DB non valido: {e}"}), 400
-
-        # 5. Rimuovi WAL/SHM obsoleti
-        for ext in ["-wal", "-shm"]:
-            p = DB_PATH + ext
-            if os.path.exists(p):
-                try: os.remove(p)
-                except Exception: pass
 
         # 6. Swap atomico
         os.replace(new_path, DB_PATH)
@@ -453,15 +460,11 @@ def api_upload_db_finalize():
             conn.close()
             ripristinati = len(albi)
 
-        # 8. Pulizia
-        try:
-            import shutil
-            shutil.rmtree(chunks_dir)
-            os.remove(gz_path)
-        except Exception:
-            pass
+        # 9. Pulizia chunks_dir residua
+        try: shutil.rmtree(chunks_dir)
+        except Exception: pass
 
-        log.info(f"finalize: DB sostituito — {n:,} bandi, {ripristinati} albi")
+        log.info(f"finalize: DB sostituito — {n:,} bandi, {ripristinati} albi ripristinati")
         return jsonify({
             "ok": True,
             "bandi": n,
@@ -470,10 +473,9 @@ def api_upload_db_finalize():
         })
 
     except Exception as e:
-        for p in [new_path, gz_path]:
-            if os.path.exists(p):
-                try: os.remove(p)
-                except Exception: pass
+        if os.path.exists(new_path):
+            try: os.remove(new_path)
+            except Exception: pass
         log.error(f"finalize fallito: {e}")
         return jsonify({"error": str(e)}), 500
 
