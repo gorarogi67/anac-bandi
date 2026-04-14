@@ -57,6 +57,7 @@ def init_db():
             {cols_sql},
             fonte TEXT,
             data_import TEXT,
+            tipo TEXT DEFAULT 'cig',
             PRIMARY KEY (cig)
         );
 
@@ -81,6 +82,8 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_anno_scad ON bandi(anno_pubblicazione, data_scadenza_offerta);
         CREATE INDEX IF NOT EXISTS idx_scad ON bandi(data_scadenza_offerta);
         CREATE INDEX IF NOT EXISTS idx_com_esito ON bandi(data_comunicazione_esito);
+
+        CREATE INDEX IF NOT EXISTS idx_tipo ON bandi(tipo);
 
         CREATE TABLE IF NOT EXISTS albi_fornitori (
             cf_sa TEXT PRIMARY KEY,
@@ -113,14 +116,24 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_part_cf  ON partecipanti(codice_fiscale);
     """)
     conn.commit()
+
+    # Migrazione: aggiunge colonna tipo se non esiste (DB esistenti)
+    try:
+        conn.execute("ALTER TABLE bandi ADD COLUMN tipo TEXT DEFAULT 'cig'")
+        conn.commit()
+        log.info("Colonna 'tipo' aggiunta alla tabella bandi")
+    except Exception:
+        pass  # colonna già esistente
+
     conn.close()
     log.info(f"Database pronto: {DB_PATH}")
 
 
-def bulk_upsert(records: List[Dict], fonte: str) -> int:
+def bulk_upsert(records: List[Dict], fonte: str, tipo: str = 'cig') -> int:
     """
     Import massivo con executemany. Molto più veloce di insert singoli.
     Gestisce colonne CSV con nomi diversi (case-insensitive).
+    tipo: 'cig' (default) o 'smartcig'
     """
     if not records:
         return 0
@@ -128,7 +141,7 @@ def bulk_upsert(records: List[Dict], fonte: str) -> int:
     conn = get_conn()
     now = datetime.now().isoformat()
 
-    all_cols = DB_COLUMNS + ["fonte", "data_import"]
+    all_cols = DB_COLUMNS + ["fonte", "data_import", "tipo"]
     placeholders = ", ".join(["?"] * len(all_cols))
     col_names = ", ".join(all_cols)
     updates = ", ".join(f"{c}=excluded.{c}" for c in all_cols if c != "cig")
@@ -153,6 +166,7 @@ def bulk_upsert(records: List[Dict], fonte: str) -> int:
             row.append(rec_lower.get(col, None))
         row.append(fonte)
         row.append(now)
+        row.append(tipo)
         batch.append(row)
 
     # Inserisci in blocchi da 5000

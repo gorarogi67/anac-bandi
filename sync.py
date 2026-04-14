@@ -25,6 +25,9 @@ from database import (init_db, bulk_upsert, log_sync, is_already_synced, get_syn
                        count_bandi, bulk_upsert_aggiudicatari, bulk_upsert_partecipanti,
                        count_aggiudicatari, count_partecipanti)
 
+DATASET_SMARTCIG_DELTA   = "smartcig"
+DATASET_SMARTCIG_ANNUALE = "smartcig-{anno}"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -261,6 +264,9 @@ def sync(force=False):
     # Sync aggiudicatari e partecipanti
     sync_aggiudicatari_partecipanti(force=force)
 
+    # Sync SmartCIG
+    sync_smartcig(force=force)
+
     tot_db = count_bandi()
     db_size = os.path.getsize(DB_PATH) // (1024 * 1024) if os.path.exists(DB_PATH) else 0
     log.info(f"\n{'='*60}")
@@ -328,6 +334,123 @@ def sync_aggiudicatari_partecipanti(force=False):
             n = upsert_fn(records)
             log.info(f"  {n:,} importati")
             log_sync(name, tipo, url, len(content), n)
+
+
+def _normalize_smartcig_record(rec: dict) -> dict:
+    """
+    Rinomina i campi SmartCIG per compatibilità con lo schema bandi.
+    SmartCIG ha 26 colonne (vs 62 dei CIG) con nomi leggermente diversi.
+    """
+    rk = {k.lower().strip(): v for k, v in rec.items()}
+    # Mappa campi data
+    if "data_comunicazione" in rk and "data_pubblicazione" not in rk:
+        rk["data_pubblicazione"] = rk.pop("data_comunicazione")
+    if "anno_comunicazione" in rk and "anno_pubblicazione" not in rk:
+        rk["anno_pubblicazione"] = rk.pop("anno_comunicazione")
+    if "mese_comunicazione" in rk and "mese_pubblicazione" not in rk:
+        rk["mese_pubblicazione"] = rk.pop("mese_comunicazione")
+    # Mappa luogo
+    if "istat_comune" in rk and not rk.get("luogo_istat"):
+        rk["luogo_istat"] = rk.get("istat_comune")
+    # Usa città come provincia (SmartCIG non ha campo provincia)
+    if "citta" in rk and not rk.get("provincia"):
+        rk["provincia"] = rk.get("citta")
+    return rk
+
+
+def sync_smartcig(force=False):
+    """
+    Scarica e importa SmartCIG (affidamenti sotto soglia).
+    Stessa logica di sync(): delta mensili + dataset annuali.
+    I record vengono importati nella tabella bandi con tipo='smartcig'.
+    """
+    BASE = "https://dati.anticorruzione.it/opendata/download/dataset"
+    anno = datetime.now().year
+    mese = datetime.now().month
+    anno_corrente = str(anno)
+
+    log.info(f"\n{'─'*50}")
+    log.info("Sync SmartCIG (affidamenti sotto soglia)...")
+
+    risorse = []
+    known = set()
+
+    # Scoperta via CKAN
+    for nome_ds in [DATASET_SMARTCIG_DELTA] + [DATASET_SMARTCIG_ANNUALE.format(anno=a)
+                                                for a in range(anno, ANNO_INIZIO - 1, -1)]:
+        ds = ckan_get("package_show", {"id": nome_ds})
+        if not ds:
+            continue
+        for r in ds.get("resources", []):
+            fmt = (r.get("format") or "").upper()
+            rname = r.get("name") or ""
+            url = r.get("url") or ""
+            if ("CSV" in fmt or "csv" in rname.lower()) and "logCsv" not in rname:
+                risorse.append({"dataset": nome_ds, "name": rname, "url": url})
+                known.add(rname)
+                log.info(f"  [CKAN {nome_ds}] {rname}")
+
+    # URL diretti — delta mensili (ultimi 6 mesi)
+    for i in range(6):
+        m = mese - i
+        a = anno
+        if m <= 0:
+            m += 12
+            a -= 1
+        name = f"{a}{m:02d}01-smartcig_csv"
+        url = f"{BASE}/smartcig/filesystem/{name}.zip"
+        if name not in known:
+            risorse.append({"dataset": "smartcig", "name": name, "url": url})
+            known.add(name)
+
+    # URL diretti — dataset annuali mensili
+    for a in range(anno, ANNO_INIZIO - 1, -1):
+        max_m = mese if a == anno else 12
+        for m in range(1, max_m + 1):
+            name = f"smartcig_csv_{a}_{m:02d}"
+            url = f"{BASE}/smartcig-{a}/filesystem/{name}.zip"
+            if name not in known:
+                risorse.append({"dataset": f"smartcig-{a}", "name": name, "url": url})
+                known.add(name)
+
+    log.info(f"SmartCIG — risorse candidate: {len(risorse)}")
+
+    totale = 0
+    for r in risorse:
+        nome = r["name"]
+        is_current = anno_corrente in nome or r["dataset"] == DATASET_SMARTCIG_DELTA
+        max_age = 20 if is_current else 999999
+
+        if not force and is_already_synced(nome, max_age_hours=max_age):
+            log.info(f"  [{nome}] già sincronizzato, salto")
+            continue
+
+        log.info(f"  [{nome}] ({r['dataset']})")
+        content = scarica(r["url"])
+        if not content:
+            continue
+
+        records = parse_csv(content)
+        log.info(f"  {len(records):,} record trovati")
+
+        # Normalizza campi SmartCIG → schema bandi
+        records = [_normalize_smartcig_record(rec) for rec in records]
+
+        # Filtra pre-ANNO_INIZIO
+        before = len(records)
+        records = [rec for rec in records
+                   if str(rec.get("anno_pubblicazione") or "").strip() >= str(ANNO_INIZIO)]
+        if len(records) < before:
+            log.info(f"  {before - len(records):,} record pre-{ANNO_INIZIO} esclusi, {len(records):,} mantenuti")
+
+        if records:
+            n = bulk_upsert(records, fonte=nome, tipo='smartcig')
+            totale += n
+            log.info(f"  {n:,} SmartCIG importati/aggiornati")
+
+        log_sync(nome, r["dataset"], r["url"], len(content), len(records))
+
+    log.info(f"Sync SmartCIG completato: {totale:,} record totali importati")
 
 
 def show_status():
