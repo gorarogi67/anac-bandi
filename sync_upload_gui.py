@@ -433,15 +433,43 @@ class SyncUploadApp:
                                     self._update_chunk(p, m, s))
                     logging.info(f"  [{i+1}/{total_chunks}] {human_size(len(chunk_data))}  {spd_str}")
 
-            # Finalizza
+            # Finalizza — avvia in background su Railway, poi fa polling
             logging.info("Finalizzazione in corso...")
             self.root.after(0, lambda: self._set_progress(97, "Finalizzazione..."))
             params = urlencode({"key": key, "upload_id": upload_id, "total_chunks": total_chunks})
-            r = session.post(f"{url}/api/upload-db-finalize?{params}", timeout=600)
+            r = session.post(f"{url}/api/upload-db-finalize?{params}", timeout=30)
             if r.status_code != 200:
                 raise RuntimeError(f"Finalizzazione fallita: HTTP {r.status_code} — {r.text[:300]}")
 
-            res     = r.json()
+            # Polling /api/upload-db-status finché status != 'running'
+            poll_params = urlencode({"key": key})
+            poll_url    = f"{url}/api/upload-db-status?{poll_params}"
+            logging.info("  In attesa completamento Railway (polling ogni 10s)...")
+            poll_elapsed = 0
+            res = None
+            while poll_elapsed < 600:
+                time.sleep(10)
+                poll_elapsed += 10
+                try:
+                    pr = session.get(poll_url, timeout=15)
+                    ps = pr.json()
+                except Exception as pe:
+                    logging.warning(f"  Polling errore: {pe}, riprovo...")
+                    continue
+                status = ps.get("status", "")
+                if status == "done":
+                    res = ps
+                    break
+                elif status == "error":
+                    raise RuntimeError(f"Finalizzazione fallita su Railway: {ps.get('error','')}")
+                else:
+                    logging.info(f"  [{poll_elapsed}s] Railway: {status}...")
+                    dots = "." * ((poll_elapsed // 10) % 4 + 1)
+                    self.root.after(0, lambda d=dots: self._set_progress(97, f"Finalizzazione{d}"))
+
+            if res is None:
+                raise RuntimeError("Timeout polling finalizzazione (10 min)")
+
             elapsed = time.time() - t0
             self.root.after(0, lambda: self._set_progress(100, "Completato"))
             logging.info(f"✓ Upload completato in {elapsed:.1f}s")

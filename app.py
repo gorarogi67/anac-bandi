@@ -32,6 +32,10 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# ── Stato finalizzazione DB upload (async) ──
+_finalize_state: dict = {"status": "idle", "result": None, "error": None}
+_finalize_lock = threading.Lock()
+
 # ── Sync scheduler ──
 def avvia_scheduler():
     """Avvia il sync giornaliero in background."""
@@ -363,30 +367,15 @@ def api_upload_db_chunk():
     return jsonify({"ok": True, "chunk": chunk_index, "size": len(data)})
 
 
-@app.route("/api/upload-db-finalize", methods=["POST"])
-def api_upload_db_finalize():
-    """Riassembla i chunk, decomprime in streaming, sostituisce il DB.
-
-    Strategia space-efficient (picco ~6.2 GB invece di ~10 GB):
-    1. Salva albi_fornitori
-    2. Elimina subito il vecchio DB (libera ~2-6 GB)
-    3. Decomprime i chunk in streaming direttamente nel nuovo DB
-       - elimina ogni chunk appena letto (libera 80 MB alla volta)
-       - nessun file .gz intermedio
-    4. Valida, swappa, ripristina albi
-    """
-    key = request.args.get("key", "")
-    if key != SYNC_SECRET:
-        return jsonify({"error": "Chiave non valida"}), 403
-
+def _run_finalize_bg(upload_id: str, total_chunks: int):
+    """Eseguito in background thread. Aggiorna _finalize_state al completamento."""
+    global _finalize_state
     from database import get_conn
     from config import DB_PATH, DATA_DIR
-    import zlib, os, sqlite3, shutil
+    import zlib, sqlite3, shutil
 
-    upload_id    = request.args.get("upload_id", "default")
-    total_chunks = int(request.args.get("total_chunks", 0))
-    chunks_dir   = os.path.join(DATA_DIR, f"upload_{upload_id}")
-    new_path     = DB_PATH + ".new"
+    chunks_dir = os.path.join(DATA_DIR, f"upload_{upload_id}")
+    new_path   = DB_PATH + ".new"
 
     try:
         # 1. Backup albi_fornitori dal DB corrente
@@ -402,7 +391,7 @@ def api_upload_db_finalize():
         present = sorted(int(f.split(".")[0]) for f in os.listdir(chunks_dir) if f.endswith(".bin"))
         missing = [i for i in range(total_chunks) if i not in present]
         if missing:
-            return jsonify({"error": f"Chunk mancanti: {missing}"}), 400
+            raise RuntimeError(f"Chunk mancanti: {missing}")
 
         # 3. Elimina subito il DB corrente + WAL/SHM per liberare spazio
         log.info("finalize: elimino DB corrente per fare spazio al nuovo...")
@@ -431,13 +420,9 @@ def api_upload_db_finalize():
         log.info(f"finalize: scritti {bytes_out:,} B ({bytes_out//(1024**3):.1f} GB)")
 
         # 5. Valida il nuovo DB
-        try:
-            test = sqlite3.connect(new_path)
-            n = test.execute("SELECT COUNT(*) FROM bandi").fetchone()[0]
-            test.close()
-        except Exception as e:
-            os.remove(new_path)
-            return jsonify({"error": f"DB non valido: {e}"}), 400
+        test = sqlite3.connect(new_path)
+        n = test.execute("SELECT COUNT(*) FROM bandi").fetchone()[0]
+        test.close()
 
         # 6. Swap atomico
         os.replace(new_path, DB_PATH)
@@ -465,19 +450,64 @@ def api_upload_db_finalize():
         except Exception: pass
 
         log.info(f"finalize: DB sostituito — {n:,} bandi, {ripristinati} albi ripristinati")
-        return jsonify({
-            "ok": True,
-            "bandi": n,
-            "bytes_written": bytes_out,
-            "albi_ripristinati": ripristinati,
-        })
+        with _finalize_lock:
+            _finalize_state = {
+                "status": "done",
+                "result": {"bandi": n, "bytes_written": bytes_out, "albi_ripristinati": ripristinati},
+                "error": None,
+            }
 
     except Exception as e:
         if os.path.exists(new_path):
             try: os.remove(new_path)
             except Exception: pass
         log.error(f"finalize fallito: {e}")
-        return jsonify({"error": str(e)}), 500
+        with _finalize_lock:
+            _finalize_state = {"status": "error", "result": None, "error": str(e)}
+
+
+@app.route("/api/upload-db-finalize", methods=["POST"])
+def api_upload_db_finalize():
+    """Avvia la finalizzazione in background e risponde subito (evita proxy timeout 60s).
+
+    Il client deve fare polling su /api/upload-db-status finché status != 'running'.
+    """
+    global _finalize_state
+
+    key = request.args.get("key", "")
+    if key != SYNC_SECRET:
+        return jsonify({"error": "Chiave non valida"}), 403
+
+    upload_id    = request.args.get("upload_id", "default")
+    total_chunks = int(request.args.get("total_chunks", 0))
+
+    with _finalize_lock:
+        if _finalize_state["status"] == "running":
+            return jsonify({"ok": True, "status": "running", "message": "Finalizzazione già in corso"})
+        _finalize_state = {"status": "running", "result": None, "error": None}
+
+    t = threading.Thread(target=_run_finalize_bg, args=(upload_id, total_chunks), daemon=True)
+    t.start()
+    log.info(f"finalize: avviato in background (upload_id={upload_id}, chunks={total_chunks})")
+    return jsonify({"ok": True, "status": "running", "message": "Finalizzazione avviata in background"})
+
+
+@app.route("/api/upload-db-status")
+def api_upload_db_status():
+    """Polling endpoint per lo stato della finalizzazione DB."""
+    key = request.args.get("key", "")
+    if key != SYNC_SECRET:
+        return jsonify({"error": "Chiave non valida"}), 403
+
+    with _finalize_lock:
+        state = dict(_finalize_state)
+
+    if state["status"] == "done":
+        return jsonify({"ok": True, "status": "done", **(state["result"] or {})})
+    elif state["status"] == "error":
+        return jsonify({"ok": False, "status": "error", "error": state["error"]}), 500
+    else:
+        return jsonify({"ok": True, "status": state["status"]})
 
 
 @app.route("/api/sync")
