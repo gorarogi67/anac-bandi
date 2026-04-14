@@ -510,6 +510,38 @@ def api_upload_db_status():
         return jsonify({"ok": True, "status": state["status"]})
 
 
+@app.route("/api/upload-db-cleanup", methods=["POST"])
+def api_upload_db_cleanup():
+    """Elimina tutti i chunk di upload in sospeso per liberare spazio su disco."""
+    key = request.args.get("key", "")
+    if key != SYNC_SECRET:
+        return jsonify({"error": "Chiave non valida"}), 403
+
+    from config import DATA_DIR
+    import shutil
+
+    removed = []
+    freed_bytes = 0
+    try:
+        for name in os.listdir(DATA_DIR):
+            if name.startswith("upload_"):
+                d = os.path.join(DATA_DIR, name)
+                if os.path.isdir(d):
+                    size = sum(
+                        os.path.getsize(os.path.join(d, f))
+                        for f in os.listdir(d)
+                        if os.path.isfile(os.path.join(d, f))
+                    )
+                    shutil.rmtree(d)
+                    removed.append(name)
+                    freed_bytes += size
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    log.info(f"upload-db-cleanup: rimossi {len(removed)} upload dir, liberati {freed_bytes//(1024**2)} MB")
+    return jsonify({"ok": True, "removed": removed, "freed_mb": freed_bytes // (1024 ** 2)})
+
+
 @app.route("/api/sync")
 def api_sync():
     """Endpoint per lanciare sync manuale (protetto da chiave)."""

@@ -361,6 +361,24 @@ class SyncUploadApp:
         scale       = (100 - progress_offset) / 100  # scala la barra nella seconda metà
 
         try:
+            # Pulizia chunk stale su Railway (libera spazio da upload precedenti falliti)
+            logging.info("Pulizia chunk precedenti su Railway...")
+            try:
+                cp = urlencode({"key": key})
+                cr = requests.post(f"{url}/api/upload-db-cleanup?{cp}", timeout=20)
+                if cr.status_code == 200:
+                    cj = cr.json()
+                    freed = cj.get("freed_mb", 0)
+                    removed = cj.get("removed", [])
+                    if removed:
+                        logging.info(f"  Rimossi {len(removed)} upload precedenti ({freed} MB liberati)")
+                    else:
+                        logging.info("  Nessun upload precedente da rimuovere")
+                else:
+                    logging.warning(f"  Cleanup: HTTP {cr.status_code} (ignorato)")
+            except Exception as ce:
+                logging.warning(f"  Cleanup fallito (ignorato): {ce}")
+
             # Comprimi
             logging.info(f"DB locale: {db}  ({human_size(db_size)})")
             logging.info("Comprimo con gzip (livello 6)...")
