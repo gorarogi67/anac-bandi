@@ -21,7 +21,9 @@ from datetime import datetime
 from typing import List, Dict
 
 from config import CKAN_API, HEADERS, DATA_DIR, DB_PATH, DATASET_CIG_DELTA, DATASET_CIG_ANNUALE, ANNO_INIZIO
-from database import init_db, bulk_upsert, log_sync, is_already_synced, get_sync_log, count_bandi
+from database import (init_db, bulk_upsert, log_sync, is_already_synced, get_sync_log,
+                       count_bandi, bulk_upsert_aggiudicatari, bulk_upsert_partecipanti,
+                       count_aggiudicatari, count_partecipanti)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,6 +74,7 @@ def ckan_get(action, params=None):
 
 def scopri_risorse() -> List[dict]:
     risorse = []
+    known_names = set()
     anno_corrente = datetime.now().year
 
     nomi = [DATASET_CIG_DELTA]
@@ -88,12 +91,25 @@ def scopri_risorse() -> List[dict]:
             url = r.get("url") or ""
             if ("CSV" in fmt or "csv" in rname.lower()) and "logCsv" not in rname:
                 risorse.append({"dataset": nome, "name": rname, "url": url})
+                known_names.add(rname)
                 log.info(f"  [{nome}] {rname}")
 
-    # FALLBACK: se l'API CKAN non funziona, usa URL diretti
+    # FALLBACK totale: se CKAN non risponde usa solo URL diretti
     if not risorse:
         log.info("API CKAN non disponibile — uso URL diretti (fallback)")
-        risorse = _url_diretti_fallback()
+        return _url_diretti_fallback()
+
+    # Integra sempre con URL diretti per file non trovati via CKAN
+    # (es. delta mesi precedenti e dataset anno corrente non ancora su CKAN)
+    aggiunti = 0
+    for r in _url_diretti_fallback():
+        if r["name"] not in known_names:
+            risorse.append(r)
+            known_names.add(r["name"])
+            aggiunti += 1
+            log.info(f"  [direct] {r['name']}")
+    if aggiunti:
+        log.info(f"  Aggiunti {aggiunti} file via URL diretto (non in CKAN)")
 
     log.info(f"Risorse CSV scoperte: {len(risorse)}")
     return risorse
@@ -136,7 +152,7 @@ def scarica(url: str) -> bytes | None:
     try:
         r = get_session().get(url, timeout=300, stream=True)
         if r.status_code == 404:
-            log.debug(f"  404 — non esiste: ...{url[-50:]}")
+            log.info(f"  404 — non esiste: ...{url[-50:]}")
             return None
         if r.status_code == 403:
             log.warning(f"  403 Forbidden (WAF/IP block?) — ...{url[-60:]}")
@@ -242,6 +258,9 @@ def sync(force=False):
         log_sync(nome, r["dataset"], r["url"], len(content), len(records))
         nuove += 1
 
+    # Sync aggiudicatari e partecipanti
+    sync_aggiudicatari_partecipanti(force=force)
+
     tot_db = count_bandi()
     db_size = os.path.getsize(DB_PATH) // (1024 * 1024) if os.path.exists(DB_PATH) else 0
     log.info(f"\n{'='*60}")
@@ -252,6 +271,63 @@ def sync(force=False):
     log.info(f"  Totale record in DB:      {tot_db:,}")
     log.info(f"  Dimensione DB:            {db_size} MB")
     log.info(f"{'='*60}")
+
+
+def sync_aggiudicatari_partecipanti(force=False):
+    """
+    Scarica e importa aggiudicatari e partecipanti ANAC.
+    - Prima esecuzione: scarica il file completo (storico)
+    - Esecuzioni successive: solo delta mensili nuovi
+    """
+    BASE = "https://dati.anticorruzione.it/opendata/download/dataset"
+    anno = datetime.now().year
+    mese = datetime.now().month
+
+    for tipo in ["aggiudicatari", "partecipanti"]:
+        upsert_fn  = bulk_upsert_aggiudicatari if tipo == "aggiudicatari" else bulk_upsert_partecipanti
+        count_fn   = count_aggiudicatari       if tipo == "aggiudicatari" else count_partecipanti
+        log.info(f"\n{'─'*50}")
+        log.info(f"Sync {tipo}...")
+
+        # 1. Import iniziale: file completo se tabella vuota
+        full_key = f"{tipo}_full_init"
+        if force or not is_already_synced(full_key, max_age_hours=999999):
+            if count_fn() == 0 or force:
+                url = f"{BASE}/{tipo}/filesystem/{tipo}_csv.zip"
+                log.info(f"  [{tipo}] Prima esecuzione — scarico file completo...")
+                content = scarica(url)
+                if content:
+                    records = parse_csv(content)
+                    log.info(f"  {len(records):,} record nel file completo")
+                    n = upsert_fn(records)
+                    log.info(f"  {n:,} importati (filtrati per CIG in DB)")
+                    log_sync(full_key, tipo, url, len(content), n)
+
+        # 2. Delta mensili recenti (ultimi 6 mesi)
+        for i in range(6):
+            m = mese - i
+            a = anno
+            if m <= 0:
+                m += 12
+                a -= 1
+            name = f"{a}{m:02d}01-{tipo}_csv"
+            is_current = (i == 0)
+            max_age = 20 if is_current else 999999
+
+            if not force and is_already_synced(name, max_age_hours=max_age):
+                log.info(f"  [{name}] già sincronizzato, salto")
+                continue
+
+            url = f"{BASE}/{tipo}/filesystem/{name}.zip"
+            content = scarica(url)
+            if not content:
+                continue
+
+            records = parse_csv(content)
+            log.info(f"  {len(records):,} record nel delta")
+            n = upsert_fn(records)
+            log.info(f"  {n:,} importati")
+            log_sync(name, tipo, url, len(content), n)
 
 
 def show_status():

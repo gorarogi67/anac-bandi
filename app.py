@@ -16,7 +16,9 @@ import logging
 import threading
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
-from database import init_db, query_bandi, query_bandi_province_agg, query_bandi_charts, query_albi_sa, upsert_albo_sa, get_filtri_disponibili, count_bandi, get_sync_log
+from database import (init_db, query_bandi, query_bandi_province_agg, query_bandi_charts,
+                       query_albi_sa, upsert_albo_sa, get_filtri_disponibili, count_bandi,
+                       get_sync_log, query_aggiudicatari_partecipanti)
 from config import PORT, KEYWORDS_DEFAULT, SYNC_SECRET
 import pandas as pd
 
@@ -139,6 +141,19 @@ def api_stats():
     stats["server_date"] = datetime.now().isoformat()
     conn.close()
     return jsonify(stats)
+
+
+@app.route("/api/bando/<cig>")
+def api_bando_dettaglio(cig):
+    """Restituisce aggiudicatari e partecipanti per un CIG."""
+    return jsonify(query_aggiudicatari_partecipanti(cig))
+
+
+@app.route("/api/sync-log")
+def api_sync_log():
+    """Restituisce il dettaglio di tutti i file sincronizzati (sync_log)."""
+    sl = get_sync_log()
+    return jsonify(sl)
 
 
 @app.route("/api/reindex")
@@ -420,16 +435,13 @@ def api_upload_db_finalize():
         # 6. Swap atomico
         os.replace(new_path, DB_PATH)
 
-        # 7. Ripristina albi_fornitori
+        # 7. Assicura che tutte le tabelle e gli indici esistano
+        init_db()
+
+        # 8. Ripristina albi_fornitori
         ripristinati = 0
         if albi:
             conn = get_conn()
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS albi_fornitori (
-                    cf_sa TEXT PRIMARY KEY, denominazione_sa TEXT,
-                    stato TEXT, note TEXT, data_aggiornamento TEXT
-                )
-            """)
             for r in albi:
                 conn.execute("""
                     INSERT OR REPLACE INTO albi_fornitori

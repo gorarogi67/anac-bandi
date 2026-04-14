@@ -328,7 +328,37 @@ let _syncPollTimer=null,_syncStartDate=null;
 function updateSyncInfo(s){if(s.ultimo_sync){const d=new Date(s.ultimo_sync);const fmt=d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});document.getElementById('syncInfo').textContent='Ultimo sync: '+fmt+' ('+s.risorse_sync+' risorse)';}else{document.getElementById('syncInfo').textContent='Ultimo sync: mai effettuato';}}
 function pollSyncStatus(btn,attempts){if(attempts<=0){clearInterval(_syncPollTimer);_syncPollTimer=null;btn.disabled=false;btn.textContent='🔄 Sync';return;}fetch('/api/stats').then(r=>r.json()).then(s=>{updateSyncInfo(s);if(s.ultimo_sync&&s.ultimo_sync!==_syncStartDate){clearInterval(_syncPollTimer);_syncPollTimer=null;btn.disabled=false;btn.textContent='🔄 Sync';document.getElementById('sA').textContent=(s.totale||0).toLocaleString('it');}});}
 function manualSync(){const btn=document.getElementById('syncBtn');btn.disabled=true;btn.textContent='⏳ Sync...';fetch('/api/stats').then(r=>r.json()).then(s=>{_syncStartDate=s.ultimo_sync||null;fetch('/api/sync?key={{ sync_secret }}').then(r=>r.json()).then(()=>{btn.textContent='⏳ In corso...';let att=20;if(_syncPollTimer)clearInterval(_syncPollTimer);_syncPollTimer=setInterval(()=>{att--;pollSyncStatus(btn,att)},30000);}).catch(()=>{btn.disabled=false;btn.textContent='❌ Errore';setTimeout(()=>{btn.textContent='🔄 Sync'},3000);});}).catch(()=>{btn.disabled=false;btn.textContent='🔄 Sync';});}
-function sd(r){document.getElementById('mT').textContent='CIG: '+(r.cig||'');const skip=['fonte','data_import'];let h='<table style="width:100%;font-size:13px">';for(const[k,v]of Object.entries(r)){if(skip.includes(k)||!v)continue;h+=`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:5px 8px;font-weight:600;color:#888;width:35%;vertical-align:top;white-space:normal;overflow:visible;max-width:none;text-overflow:clip">${k}</td><td style="padding:5px 8px;word-break:break-word;white-space:normal;overflow:visible;max-width:none;text-overflow:clip">${v}</td></tr>`}h+='</table>';document.getElementById('mB').innerHTML=h;document.getElementById('modal').style.display='block'}
+function sd(r){
+  document.getElementById('mT').textContent='CIG: '+(r.cig||'');
+  const skip=['fonte','data_import'];
+  let h='<table style="width:100%;font-size:13px">';
+  for(const[k,v]of Object.entries(r)){if(skip.includes(k)||!v)continue;h+=`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:5px 8px;font-weight:600;color:#888;width:35%;vertical-align:top;white-space:normal;overflow:visible;max-width:none;text-overflow:clip">${k}</td><td style="padding:5px 8px;word-break:break-word;white-space:normal;overflow:visible;max-width:none;text-overflow:clip">${v}</td></tr>`}
+  h+='</table>';
+  h+=`<div id="aggPart" style="margin-top:18px"><div style="text-align:center;padding:12px;color:#aaa;font-size:13px"><span class="loader"></span>&nbsp;Caricamento aggiudicatari...</div></div>`;
+  document.getElementById('mB').innerHTML=h;
+  document.getElementById('modal').style.display='block';
+  fetch('/api/bando/'+encodeURIComponent(r.cig||'')).then(res=>res.json()).then(d=>{
+    const tblStyle='width:100%;font-size:12px;border-collapse:collapse';
+    const thStyle='text-align:left;padding:4px 8px;color:#888;font-size:11px;font-weight:600;text-transform:uppercase;border-bottom:1px solid #e5e7eb';
+    const tdStyle='padding:5px 8px;border-bottom:1px solid #f3f4f6';
+    let ah='';
+    if(d.aggiudicatari&&d.aggiudicatari.length){
+      ah+=`<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px;padding:6px 10px;background:#dbeafe;border-radius:6px">Aggiudicatari (${d.aggiudicatari.length})</div>`;
+      ah+=`<table style="${tblStyle}"><tr><th style="${thStyle}">Denominazione</th><th style="${thStyle}">CF / P.IVA</th><th style="${thStyle}">Tipo</th><th style="${thStyle}">Ruolo</th></tr>`;
+      d.aggiudicatari.forEach(a=>{ah+=`<tr><td style="${tdStyle};font-weight:600">${a.denominazione||'—'}</td><td style="${tdStyle};font-family:monospace;font-size:11px">${a.codice_fiscale||'—'}</td><td style="${tdStyle}">${a.tipo_soggetto||'—'}</td><td style="${tdStyle}">${a.ruolo||'—'}</td></tr>`;});
+      ah+='</table></div>';
+    } else {
+      ah+='<div style="color:#aaa;font-size:12px;margin-bottom:10px;padding:6px 10px;background:#f9fafb;border-radius:6px">Nessun aggiudicatario disponibile per questo CIG</div>';
+    }
+    if(d.partecipanti&&d.partecipanti.length){
+      ah+=`<div><div style="font-size:13px;font-weight:700;color:#059669;margin-bottom:8px;padding:6px 10px;background:#d1fae5;border-radius:6px">Partecipanti (${d.partecipanti.length})</div>`;
+      ah+=`<table style="${tblStyle}"><tr><th style="${thStyle}">Denominazione</th><th style="${thStyle}">CF / P.IVA</th><th style="${thStyle}">Tipo</th><th style="${thStyle}">Ruolo</th></tr>`;
+      d.partecipanti.forEach(p=>{ah+=`<tr><td style="${tdStyle};font-weight:600">${p.denominazione||'—'}</td><td style="${tdStyle};font-family:monospace;font-size:11px">${p.codice_fiscale||'—'}</td><td style="${tdStyle}">${p.tipo_soggetto||'—'}</td><td style="${tdStyle}">${p.ruolo||'—'}</td></tr>`;});
+      ah+='</table></div>';
+    }
+    document.getElementById('aggPart').innerHTML=ah||'<div style="color:#aaa;font-size:12px">Nessun dato disponibile</div>';
+  }).catch(()=>{document.getElementById('aggPart').innerHTML='<div style="color:#aaa;font-size:12px">Errore caricamento dati aggiudicatari</div>';});
+}
 function cm(){document.getElementById('modal').style.display='none'}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cm()});
 

@@ -89,6 +89,28 @@ def init_db():
             note TEXT DEFAULT '',
             data_aggiornamento TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS aggiudicatari (
+            cig TEXT NOT NULL,
+            ruolo TEXT,
+            codice_fiscale TEXT,
+            denominazione TEXT,
+            tipo_soggetto TEXT,
+            id_aggiudicazione TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_agg_cig ON aggiudicatari(cig);
+        CREATE INDEX IF NOT EXISTS idx_agg_cf  ON aggiudicatari(codice_fiscale);
+        CREATE INDEX IF NOT EXISTS idx_agg_den ON aggiudicatari(denominazione);
+
+        CREATE TABLE IF NOT EXISTS partecipanti (
+            cig TEXT NOT NULL,
+            ruolo TEXT,
+            codice_fiscale TEXT,
+            denominazione TEXT,
+            tipo_soggetto TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_part_cig ON partecipanti(cig);
+        CREATE INDEX IF NOT EXISTS idx_part_cf  ON partecipanti(codice_fiscale);
     """)
     conn.commit()
     conn.close()
@@ -561,6 +583,122 @@ def upsert_albo_sa(cf_sa: str, denominazione_sa: str, stato: str, note: str):
     """, (cf_sa, denominazione_sa, stato, note, datetime.now().isoformat()))
     conn.commit()
     conn.close()
+
+
+def count_aggiudicatari() -> int:
+    conn = get_conn()
+    n = conn.execute("SELECT COUNT(*) FROM aggiudicatari").fetchone()[0]
+    conn.close()
+    return n
+
+
+def count_partecipanti() -> int:
+    conn = get_conn()
+    n = conn.execute("SELECT COUNT(*) FROM partecipanti").fetchone()[0]
+    conn.close()
+    return n
+
+
+def bulk_upsert_aggiudicatari(records: List[Dict]) -> int:
+    """Importa aggiudicatari filtrando solo i CIG già presenti nel DB."""
+    if not records:
+        return 0
+    conn = get_conn()
+    db_cigs = {r[0] for r in conn.execute("SELECT cig FROM bandi").fetchall()}
+
+    seen = set()
+    batch = []
+    for rec in records:
+        rk = {k.lower().strip(): (v or "") for k, v in rec.items()}
+        cig = rk.get("cig", "").strip()
+        if not cig or cig not in db_cigs:
+            continue
+        cf  = rk.get("codice_fiscale", "").strip()
+        agg = rk.get("id_aggiudicazione", "").strip()
+        key = (cig, cf, agg)
+        if key in seen:
+            continue
+        seen.add(key)
+        batch.append((cig, rk.get("ruolo"), cf, rk.get("denominazione"), rk.get("tipo_soggetto"), agg))
+
+    if not batch:
+        conn.close()
+        return 0
+
+    sql = """INSERT OR IGNORE INTO aggiudicatari
+             (cig, ruolo, codice_fiscale, denominazione, tipo_soggetto, id_aggiudicazione)
+             VALUES (?,?,?,?,?,?)"""
+    inserted = 0
+    for i in range(0, len(batch), 5000):
+        try:
+            conn.executemany(sql, batch[i:i+5000])
+            inserted += len(batch[i:i+5000])
+        except Exception as e:
+            log.warning(f"aggiudicatari batch {i}: {e}")
+    conn.commit()
+    conn.close()
+    return inserted
+
+
+def bulk_upsert_partecipanti(records: List[Dict]) -> int:
+    """Importa partecipanti filtrando solo i CIG già presenti nel DB."""
+    if not records:
+        return 0
+    conn = get_conn()
+    db_cigs = {r[0] for r in conn.execute("SELECT cig FROM bandi").fetchall()}
+
+    seen = set()
+    batch = []
+    for rec in records:
+        rk = {k.lower().strip(): (v or "") for k, v in rec.items()}
+        cig = rk.get("cig", "").strip()
+        if not cig or cig not in db_cigs:
+            continue
+        cf   = rk.get("codice_fiscale", "").strip()
+        ruolo = rk.get("ruolo", "").strip()
+        key = (cig, cf, ruolo)
+        if key in seen:
+            continue
+        seen.add(key)
+        batch.append((cig, ruolo, cf, rk.get("denominazione"), rk.get("tipo_soggetto")))
+
+    if not batch:
+        conn.close()
+        return 0
+
+    sql = """INSERT OR IGNORE INTO partecipanti
+             (cig, ruolo, codice_fiscale, denominazione, tipo_soggetto)
+             VALUES (?,?,?,?,?)"""
+    inserted = 0
+    for i in range(0, len(batch), 5000):
+        try:
+            conn.executemany(sql, batch[i:i+5000])
+            inserted += len(batch[i:i+5000])
+        except Exception as e:
+            log.warning(f"partecipanti batch {i}: {e}")
+    conn.commit()
+    conn.close()
+    return inserted
+
+
+def query_aggiudicatari_partecipanti(cig: str) -> Dict:
+    """Restituisce aggiudicatari e partecipanti per un CIG."""
+    conn = get_conn()
+    agg = conn.execute(
+        """SELECT ruolo, codice_fiscale, denominazione, tipo_soggetto, id_aggiudicazione
+           FROM aggiudicatari WHERE cig=? ORDER BY id_aggiudicazione, ruolo""",
+        (cig,)
+    ).fetchall()
+    part = conn.execute(
+        """SELECT ruolo, codice_fiscale, denominazione, tipo_soggetto
+           FROM partecipanti WHERE cig=? ORDER BY ruolo, denominazione""",
+        (cig,)
+    ).fetchall()
+    conn.close()
+    return {
+        "aggiudicatari": [dict(r) for r in agg],
+        "partecipanti":  [dict(r) for r in part],
+    }
 
 
 def get_filtri_disponibili() -> dict:
