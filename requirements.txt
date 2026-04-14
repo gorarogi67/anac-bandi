@@ -1,5 +1,6 @@
 flask==3.1.*
 requests
+curl-cffi
 pandas
 openpyxl
 gunicorn

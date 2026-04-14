@@ -10,7 +10,6 @@ Uso:
   python sync.py --status     # mostra stato database
 """
 
-import requests
 import zipfile
 import csv
 import io
@@ -19,6 +18,15 @@ import sys
 import logging
 from datetime import datetime
 from typing import List, Dict
+
+# Prova curl_cffi: TLS fingerprint identico a Chrome (aggira WAF basati su JA3/IP).
+# Se non installato, fallback su requests standard.
+try:
+    from curl_cffi import requests
+    _CFFI = True
+except ImportError:
+    import requests  # type: ignore
+    _CFFI = False
 
 from config import CKAN_API, HEADERS, DATA_DIR, DB_PATH, DATASET_CIG_DELTA, DATASET_CIG_ANNUALE, ANNO_INIZIO
 from database import (init_db, bulk_upsert, log_sync, is_already_synced, get_sync_log,
@@ -41,10 +49,15 @@ log = logging.getLogger(__name__)
 # Session condivisa: mantiene cookie di sessione ottenuti visitando il sito
 _session = None
 
-def get_session() -> requests.Session:
+def get_session():
     global _session
     if _session is None:
-        _session = requests.Session()
+        if _CFFI:
+            _session = requests.Session(impersonate="chrome124")
+            log.info("Sessione HTTP: curl_cffi (TLS Chrome124 — aggira WAF)")
+        else:
+            _session = requests.Session()
+            log.warning("Sessione HTTP: requests standard (curl_cffi non installato)")
         _session.headers.update(HEADERS)
         try:
             log.info("Inizializzazione sessione HTTP (warm-up cookie)...")
