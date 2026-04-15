@@ -75,6 +75,7 @@ def _parse_filters(args):
         "solo_ad": args.get("solo_ad", "") == "1",
         "esito": args.get("esito", ""),
         "provincia": args.get("provincia", ""),
+        "tipo": args.get("tipo", ""),
     }
     return f
 

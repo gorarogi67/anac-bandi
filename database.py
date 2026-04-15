@@ -320,6 +320,9 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
     if filters.get("provincia"):
         where.append("provincia = ?")
         params.append(filters["provincia"])
+    if filters.get("tipo") in ("cig", "smartcig"):
+        where.append("tipo = ?")
+        params.append(filters["tipo"])
 
     where_sql = " AND ".join(where) if where else "1=1"
 
@@ -386,6 +389,9 @@ def _build_where(filters: dict):
     if filters.get("provincia"):
         where.append("provincia = ?")
         params.append(filters["provincia"])
+    if filters.get("tipo") in ("cig", "smartcig"):
+        where.append("tipo = ?")
+        params.append(filters["tipo"])
     return (" AND ".join(where) if where else "1=1"), params
 
 
