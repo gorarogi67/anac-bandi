@@ -360,7 +360,20 @@ Includi obbligatoriamente:
 - Reputazione, notizie di stampa rilevanti, premi o certificazioni
 - Eventuali procedimenti legali, sanzioni, interdittive antimafia o criticità
 - Link utili: sito aziendale, visura camerale, profilo LinkedIn, articoli di giornale`;
-  window.open('https://gemini.google.com/app?q='+encodeURIComponent(prompt),'_blank');
+  navigator.clipboard.writeText(prompt).then(()=>{
+    showToast('📋 Prompt copiato! Incolla su Gemini con Ctrl+V e clicca "Deep Research"');
+    window.open('https://gemini.google.com/app','_blank');
+  }).catch(()=>{
+    // fallback se clipboard non disponibile
+    window.open('https://gemini.google.com/app','_blank');
+    showToast('Apri Gemini e cerca: '+nome);
+  });
+}
+function showToast(msg){
+  let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:opacity 0.4s;max-width:90vw;text-align:center';document.body.appendChild(t);}
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._tm);t._tm=setTimeout(()=>{t.style.opacity='0'},4000);
 }
 function filtraPerSA(cf,nome){cfSaFilter=cf;cfSaNome=nome;document.getElementById('saBanner').style.display='flex';document.getElementById('saBannerNome').textContent=nome;document.getElementById('tb').scrollIntoView({behavior:'smooth',block:'start'});ld(1);}
 function clearSaFilter(){cfSaFilter='';cfSaNome='';document.getElementById('saBanner').style.display='none';ld(1);}
