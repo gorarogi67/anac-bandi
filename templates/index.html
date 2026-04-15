@@ -62,6 +62,7 @@
         @media (max-width:480px){
             #mapContainer{height:320px}
         }
+        html,body{overflow-x:hidden;width:100%}
         .yr-chip{display:inline-block;padding:3px 10px;border-radius:14px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #d1d5db;background:#fff;color:#555;transition:all .1s;user-select:none}
         .yr-chip.sel{background:#2563eb;color:#fff;border-color:#2563eb}
         .yr-chip:hover:not(.sel){background:#f3f4f6}
@@ -98,30 +99,43 @@
         .kpi-lbl{font-size:11px;color:#888;margin-top:3px;font-weight:600;text-transform:uppercase}
         @media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
 
-        /* ── Tablet (< 1024px) ── */
+        /* ── Tablet grande (< 1024px): nascondi Aggiudicatario ── */
         @media (max-width:1024px){
             .header{padding:14px 20px}
             td{max-width:200px}
+            /* col 9 = Aggiudicatario/Fornitore */
+            table.main-table th:nth-child(9), table.main-table td:nth-child(9){display:none}
+            /* top-agg: nascondi CF */
+            .top-agg-table th:nth-child(3), .top-agg-table td:nth-child(3){display:none}
         }
 
         /* ── Tablet piccolo (< 768px) ── */
         @media (max-width:768px){
             .header{padding:12px 16px}
             .header h1{font-size:17px}
+            .header-inner{flex-wrap:wrap;gap:8px}
             .stats{grid-template-columns:repeat(2,1fr)}
             .stat:nth-child(2){border-right:none}
             .stat:nth-child(3){border-top:1px solid #eee}
             .stat-num{font-size:22px}
             .filters{padding:12px 14px;gap:8px}
             .fg{min-width:calc(50% - 8px)}
-            table th:nth-child(7), table td:nth-child(7){display:none} /* nascondi Scadenza */
+            /* col 7=Scadenza, 9=Aggiudicatario */
+            table.main-table th:nth-child(7), table.main-table td:nth-child(7){display:none}
+            table.main-table th:nth-child(9), table.main-table td:nth-child(9){display:none}
+            /* albi: nascondi Ultima gara */
+            .albi-table th:nth-child(4), .albi-table td:nth-child(4){display:none}
+            /* top-agg: nascondi CF e importo */
+            .top-agg-table th:nth-child(3), .top-agg-table td:nth-child(3){display:none}
+            .top-agg-table th:nth-child(5), .top-agg-table td:nth-child(5){display:none}
         }
 
         /* ── Mobile (< 480px) ── */
         @media (max-width:480px){
             .header-inner{flex-direction:column;align-items:flex-start}
-            .header h1{font-size:16px}
-            .container{padding:0 10px;margin:10px auto}
+            .header h1{font-size:15px}
+            .header p{font-size:11px}
+            .container{padding:0 8px;margin:8px auto}
             .stats{grid-template-columns:repeat(2,1fr)}
             .stat{padding:10px 8px}
             .stat-num{font-size:18px}
@@ -129,15 +143,27 @@
             .card{border-radius:8px;margin-bottom:10px}
             .filters{padding:10px 12px;gap:8px}
             .fg{width:100%}
-            table th:nth-child(3), table td:nth-child(3){display:none} /* nascondi SA */
-            table th:nth-child(6), table td:nth-child(6){display:none} /* nascondi Pubblicazione */
-            table th:nth-child(7), table td:nth-child(7){display:none} /* nascondi Scadenza */
-            td{max-width:140px;font-size:12px}
-            th{font-size:10px;padding:7px 6px}
-            td{padding:7px 6px}
-            .modal{margin:0;border-radius:0;max-height:100dvh;min-height:100dvh;padding:16px}
+            /* col 3=SA, 5=Prov, 6=Pubblicazione, 7=Scadenza, 8=Esito testo lungo, 9=Aggiudicatario */
+            table.main-table th:nth-child(3), table.main-table td:nth-child(3){display:none}
+            table.main-table th:nth-child(5), table.main-table td:nth-child(5){display:none}
+            table.main-table th:nth-child(6), table.main-table td:nth-child(6){display:none}
+            table.main-table th:nth-child(7), table.main-table td:nth-child(7){display:none}
+            table.main-table th:nth-child(9), table.main-table td:nth-child(9){display:none}
+            td{max-width:130px;font-size:12px}
+            th{font-size:10px;padding:6px 5px}
+            td{padding:6px 5px}
+            /* albi: mostra solo SA, n°AD, stato */
+            .albi-table th:nth-child(3), .albi-table td:nth-child(3){display:none}
+            .albi-table th:nth-child(4), .albi-table td:nth-child(4){display:none}
+            .albi-table th:nth-child(6), .albi-table td:nth-child(6){display:none}
+            /* top-agg: mostra solo rank, nome, n° gare, lente */
+            .top-agg-table th:nth-child(3), .top-agg-table td:nth-child(3){display:none}
+            .top-agg-table th:nth-child(5), .top-agg-table td:nth-child(5){display:none}
+            .modal{margin:0;border-radius:0;max-height:100dvh;min-height:100dvh;padding:14px}
             .paging{justify-content:center}
             .paging-info{width:100%;text-align:center}
+            #sQ{min-width:120px !important}
+            .map-toggle{font-size:12px;padding:9px 14px}
         }
     </style>
 </head>
@@ -247,7 +273,7 @@
     <span id="albiCount" style="font-size:12px;color:#aaa;margin-left:auto"></span>
   </div>
   <div style="overflow-x:auto">
-  <table class="albi-table">
+  <table class="albi-table" style="width:100%">
     <thead><tr>
       <th>Stazione Appaltante</th>
       <th style="text-align:right">N° AD</th>
@@ -270,7 +296,7 @@
   <span>🏆 Gare vinte da: <strong id="aggBannerNome"></strong></span>
   <button onclick="clearAggFilter()" style="background:none;border:none;color:#2563eb;font-size:12px;font-weight:700;cursor:pointer">✕ Rimuovi filtro</button>
 </div>
-<div class="card table-wrap"><div id="loading"><div class="loader" style="margin:auto"></div><p style="color:#aaa;margin-top:10px;font-size:13px">Caricamento...</p></div><table><thead><tr><th onclick="srt('cig')">CIG</th><th onclick="srt('oggetto_lotto')">Oggetto</th><th onclick="srt('denominazione_amministrazione_appaltante')">Stazione Appaltante</th><th onclick="srt('importo_lotto')" style="text-align:right">Importo</th><th onclick="srt('provincia')">Prov</th><th onclick="srt('data_pubblicazione')">Pubblicazione</th><th onclick="srt('data_scadenza_offerta')">Scadenza</th><th>Esito</th><th>Aggiudicatario/Fornitore</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="card table-wrap"><div id="loading"><div class="loader" style="margin:auto"></div><p style="color:#aaa;margin-top:10px;font-size:13px">Caricamento...</p></div><table class="main-table"><thead><tr><th onclick="srt('cig')">CIG</th><th onclick="srt('oggetto_lotto')">Oggetto</th><th onclick="srt('denominazione_amministrazione_appaltante')">Stazione Appaltante</th><th onclick="srt('importo_lotto')" style="text-align:right">Importo</th><th onclick="srt('provincia')">Prov</th><th onclick="srt('data_pubblicazione')">Pubblicazione</th><th onclick="srt('data_scadenza_offerta')">Scadenza</th><th>Esito</th><th>Aggiudicatario/Fornitore</th></tr></thead><tbody id="tb"></tbody></table></div>
 <div class="paging"><div class="paging-info" id="pgI"></div><div id="pgB" style="display:flex;flex-wrap:wrap;gap:3px"></div></div>
 </div>
 
@@ -279,7 +305,7 @@
 <div id="topAggInner" style="display:none">
   <div id="topAggLoading" style="display:none;text-align:center;padding:24px;color:#888;font-size:13px"><span class="loader"></span> &nbsp;Caricamento in corso...</div>
   <div style="overflow-x:auto">
-  <table class="albi-table">
+  <table class="albi-table top-agg-table" style="width:100%">
     <thead><tr>
       <th style="width:36px">#</th>
       <th>Aggiudicatario / Fornitore</th>
