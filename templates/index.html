@@ -286,6 +286,7 @@
       <th>Codice Fiscale</th>
       <th style="text-align:right">N° gare vinte</th>
       <th style="text-align:right">Importo totale</th>
+      <th style="width:40px"></th>
     </tr></thead>
     <tbody id="topAggTb"></tbody>
   </table>
@@ -339,7 +340,7 @@ function loadPreset(){kws={{keywords_default|tojson}};rc();ld(1)}
 document.getElementById('kwInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addKw(e.target.value)}});
 function gp(){const p={keywords:kws.join(','),kw_mode:kwMode,q:document.getElementById('sQ').value,anni:[...selectedAnni].join(','),con_scadenza:conScadenza?'1':'',esito:document.getElementById('fE').value,provincia:document.getElementById('fP').value,tipo:document.getElementById('fT').value,sort:sc,order:so,page:pg,per_page:50};if(cfSaFilter){p.cf_sa=cfSaFilter;p.solo_ad='1';}if(aggFilter)p.cf_aggiudicatario=aggFilter;return p;}
 function ld(p){pg=p||1;const params=new URLSearchParams({...gp(),page:pg});document.getElementById('loading').style.display='block';document.getElementById('tb').innerHTML='';fetch(`/api/bandi?${params}`).then(r=>r.json()).then(d=>{document.getElementById('loading').style.display='none';document.getElementById('sF').textContent=d.total.toLocaleString('it');rr(d.records);rp(d);ldMap();ldCharts();ldAlbi();ldTopAgg()})}
-function rr(rows){const tb=document.getElementById('tb');if(!rows.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#ccc">Nessun risultato</td></tr>';return}tb.innerHTML=rows.map(r=>{const imp=r.importo_lotto?'€'+parseFloat(r.importo_lotto).toLocaleString('it',{minimumFractionDigits:2}):'';const isScig=r.tipo==='smartcig';const rowBg=isScig?'background:#f5f3ff;':'';let b='';if(!r.esito)b='<span class="badge bg">In Corso</span>';else if(r.esito==='AGGIUDICATA')b='<span class="badge bb">Aggiudicata</span>';else b='<span class="badge bgr">'+((r.esito||'').substring(0,28))+'</span>';if(isScig)b+=' <span style="background:#e9d5ff;color:#6b21a8;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;vertical-align:middle">SMARTCIG</span>';const agNome=r.aggiudicatario_nome?`<span title="${(r.aggiudicatario_nome||'').replace(/"/g,'&quot;')}" style="font-size:11px;color:#374151">${(r.aggiudicatario_nome||'').substring(0,40)}${r.aggiudicatario_nome.length>40?'…':''}</span>`:'';return`<tr onclick='sd(${JSON.stringify(r).replace(/'/g,"&#39;")})' style="${rowBg}"><td style="font-family:monospace;font-size:12px"><a href="https://dati.anticorruzione.it/superset/recaptcha/?cig=${r.cig||''}&next=dettaglio_cig" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;text-decoration:none;font-weight:600" title="Apri dettaglio su ANAC">${r.cig||''} ↗</a></td><td title="${(r.oggetto_lotto||'').replace(/"/g,'&quot;')}">${r.oggetto_lotto||''}</td><td>${r.denominazione_amministrazione_appaltante||''}</td><td style="text-align:right;font-weight:600">${imp}</td><td>${r.provincia||''}</td><td>${r.data_pubblicazione||''}</td><td>${r.data_scadenza_offerta||''}</td><td>${b}</td><td>${agNome}</td></tr>`}).join('')}
+function rr(rows){const tb=document.getElementById('tb');if(!rows.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#ccc">Nessun risultato</td></tr>';return}tb.innerHTML=rows.map(r=>{const imp=r.importo_lotto?'€'+parseFloat(r.importo_lotto).toLocaleString('it',{minimumFractionDigits:2}):'';const isScig=r.tipo==='smartcig';const rowBg=isScig?'background:#f5f3ff;':'';let b='';if(!r.esito)b='<span class="badge bg">In Corso</span>';else if(r.esito==='AGGIUDICATA')b='<span class="badge bb">Aggiudicata</span>';else b='<span class="badge bgr">'+((r.esito||'').substring(0,28))+'</span>';if(isScig)b+=' <span style="background:#e9d5ff;color:#6b21a8;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;vertical-align:middle">SMARTCIG</span>';const agNome=r.aggiudicatario_nome?`<span title="${(r.aggiudicatario_nome||'').replace(/"/g,'&quot;')}" style="font-size:11px;color:#374151">${(r.aggiudicatario_nome||'').substring(0,40)}${r.aggiudicatario_nome.length>40?'…':''}</span> <button onclick="event.stopPropagation();geminiResearch('${(r.aggiudicatario_nome||'').replace(/'/g,"\\'")}','')" title="Ricerca su Gemini" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0 2px;opacity:0.6" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">🔍</button>`:'';return`<tr onclick='sd(${JSON.stringify(r).replace(/'/g,"&#39;")})' style="${rowBg}"><td style="font-family:monospace;font-size:12px"><a href="https://dati.anticorruzione.it/superset/recaptcha/?cig=${r.cig||''}&next=dettaglio_cig" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;text-decoration:none;font-weight:600" title="Apri dettaglio su ANAC">${r.cig||''} ↗</a></td><td title="${(r.oggetto_lotto||'').replace(/"/g,'&quot;')}">${r.oggetto_lotto||''}</td><td>${r.denominazione_amministrazione_appaltante||''}</td><td style="text-align:right;font-weight:600">${imp}</td><td>${r.provincia||''}</td><td>${r.data_pubblicazione||''}</td><td>${r.data_scadenza_offerta||''}</td><td>${b}</td><td>${agNome}</td></tr>`}).join('')}
 function rp(d){const s=(d.page-1)*d.per_page+1,e=Math.min(d.page*d.per_page,d.total);document.getElementById('pgI').textContent=d.total?`${s}-${e} di ${d.total.toLocaleString('it')}`:'';let h='';if(d.page>1)h+=`<button class="pg" onclick="ld(${d.page-1})">← Prec</button>`;const f=Math.max(1,d.page-4),t=Math.min(d.pages,f+9);for(let i=f;i<=t;i++)h+=`<button class="pg ${i===d.page?'active':''}" onclick="ld(${i})">${i}</button>`;if(d.page<d.pages)h+=`<button class="pg" onclick="ld(${d.page+1})">Succ →</button>`;document.getElementById('pgB').innerHTML=h}
 function srt(c){if(sc===c)so=so==='asc'?'desc':'asc';else{sc=c;so='desc'}ld(1)}
 function deb(){clearTimeout(tm);tm=setTimeout(()=>ld(1),400)}
@@ -347,6 +348,20 @@ function _resetFiltriBase(){kws=[];rc();document.getElementById('sQ').value='';d
 function resetAll(){_resetFiltriBase();cfSaFilter='';cfSaNome='';document.getElementById('saBanner').style.display='none';aggFilter='';aggNome='';document.getElementById('aggBanner').style.display='none';ld(1);}
 function filtraPerAgg(cf,nome){aggFilter=cf;aggNome=nome;document.getElementById('aggBanner').style.display='flex';document.getElementById('aggBannerNome').textContent=nome;document.getElementById('tb').scrollIntoView({behavior:'smooth',block:'start'});ld(1);}
 function clearAggFilter(){aggFilter='';aggNome='';document.getElementById('aggBanner').style.display='none';ld(1);}
+function geminiResearch(nome,cf){
+  const prompt=`Fai una ricerca approfondita sull'azienda italiana "${nome}"${cf?' (P.IVA/Codice Fiscale: '+cf+')':''}.
+Includi obbligatoriamente:
+- Attività principale e settore merceologico
+- Sede legale e sito web ufficiale
+- Storia e anno di fondazione
+- Fatturato degli ultimi 3 anni e andamento finanziario
+- Numero di dipendenti e dimensioni aziendali
+- Principali clienti e commesse pubbliche (appalti ANAC)
+- Reputazione, notizie di stampa rilevanti, premi o certificazioni
+- Eventuali procedimenti legali, sanzioni, interdittive antimafia o criticità
+- Link utili: sito aziendale, visura camerale, profilo LinkedIn, articoli di giornale`;
+  window.open('https://gemini.google.com/app?q='+encodeURIComponent(prompt),'_blank');
+}
 function filtraPerSA(cf,nome){cfSaFilter=cf;cfSaNome=nome;document.getElementById('saBanner').style.display='flex';document.getElementById('saBannerNome').textContent=nome;document.getElementById('tb').scrollIntoView({behavior:'smooth',block:'start'});ld(1);}
 function clearSaFilter(){cfSaFilter='';cfSaNome='';document.getElementById('saBanner').style.display='none';ld(1);}
 function exportXl(){const p=new URLSearchParams(gp());window.open(`/api/export?${p}`,'_blank')}
@@ -371,8 +386,8 @@ function sd(r){
     let ah='';
     if(d.aggiudicatari&&d.aggiudicatari.length){
       ah+=`<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px;padding:6px 10px;background:#dbeafe;border-radius:6px">Aggiudicatari (${d.aggiudicatari.length})</div>`;
-      ah+=`<table style="${tblStyle}"><tr><th style="${thStyle}">Denominazione</th><th style="${thStyle}">CF / P.IVA</th><th style="${thStyle}">Tipo</th><th style="${thStyle}">Ruolo</th></tr>`;
-      d.aggiudicatari.forEach(a=>{ah+=`<tr><td style="${tdStyle};font-weight:600">${a.denominazione||'—'}</td><td style="${tdStyle};font-family:monospace;font-size:11px">${a.codice_fiscale||'—'}</td><td style="${tdStyle}">${a.tipo_soggetto||'—'}</td><td style="${tdStyle}">${a.ruolo||'—'}</td></tr>`;});
+      ah+=`<table style="${tblStyle}"><tr><th style="${thStyle}">Denominazione</th><th style="${thStyle}">CF / P.IVA</th><th style="${thStyle}">Tipo</th><th style="${thStyle}">Ruolo</th><th style="${thStyle}"></th></tr>`;
+      d.aggiudicatari.forEach(a=>{const gBtn=`<button onclick="geminiResearch('${(a.denominazione||'').replace(/'/g,"\\'")}','${(a.codice_fiscale||'').replace(/'/g,"\\'")}');" title="Ricerca su Gemini" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 4px;opacity:0.6" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">🔍</button>`;ah+=`<tr><td style="${tdStyle};font-weight:600">${a.denominazione||'—'}</td><td style="${tdStyle};font-family:monospace;font-size:11px">${a.codice_fiscale||'—'}</td><td style="${tdStyle}">${a.tipo_soggetto||'—'}</td><td style="${tdStyle}">${a.ruolo||'—'}</td><td style="${tdStyle}">${gBtn}</td></tr>`;});
       ah+='</table></div>';
     } else {
       ah+='<div style="color:#aaa;font-size:12px;margin-bottom:10px;padding:6px 10px;background:#f9fafb;border-radius:6px">Nessun aggiudicatario disponibile per questo CIG</div>';
@@ -412,7 +427,8 @@ function ldTopAgg(){
       const cf=r.codice_fiscale||'';
       const nome=(r.denominazione||'—').replace(/'/g,"&#39;");
       const clickable=cf?`onclick="filtraPerAgg('${cf}','${nome}')" style="cursor:pointer;border-bottom:1px solid #f3f4f6" title="Clicca per filtrare le gare di questa azienda"`:`style="border-bottom:1px solid #f3f4f6"`;
-      return`<tr ${clickable}><td style="text-align:center;color:#9ca3af;font-size:12px">${i+1}</td><td style="font-weight:600">${r.denominazione||'—'}</td><td style="font-family:monospace;font-size:11px;color:#6b7280">${cf||'—'}</td><td style="text-align:right;font-weight:700;color:#2563eb">${(r.n_aggiudicazioni||0).toLocaleString('it')}</td><td style="text-align:right;color:#059669">${imp}</td></tr>`;
+      const gemBtn=`<button onclick="event.stopPropagation();geminiResearch('${nome}','${cf}')" title="Ricerca approfondita su Gemini" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px;opacity:0.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7">🔍</button>`;
+      return`<tr ${clickable}><td style="text-align:center;color:#9ca3af;font-size:12px">${i+1}</td><td style="font-weight:600">${r.denominazione||'—'}</td><td style="font-family:monospace;font-size:11px;color:#6b7280">${cf||'—'}</td><td style="text-align:right;font-weight:700;color:#2563eb">${(r.n_aggiudicazioni||0).toLocaleString('it')}</td><td style="text-align:right;color:#059669">${imp}</td><td style="text-align:center">${gemBtn}</td></tr>`;
     }).join('');
   }).catch(()=>{document.getElementById('topAggLoading').style.display='none';});
 }
