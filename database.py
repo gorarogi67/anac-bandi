@@ -341,7 +341,8 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
         sort_col = "data_pubblicazione"
 
     rows = conn.execute(
-        f"SELECT * FROM bandi WHERE {where_sql} ORDER BY {sort_col} {sort_order} LIMIT ? OFFSET ?",
+        f"SELECT b.*, (SELECT denominazione FROM aggiudicatari WHERE cig=b.cig LIMIT 1) as aggiudicatario_nome "
+        f"FROM bandi b WHERE {where_sql} ORDER BY b.{sort_col} {sort_order} LIMIT ? OFFSET ?",
         params + [limit, offset],
     ).fetchall()
 
@@ -723,6 +724,26 @@ def query_aggiudicatari_partecipanti(cig: str) -> Dict:
         "aggiudicatari": [dict(r) for r in agg],
         "partecipanti":  [dict(r) for r in part],
     }
+
+
+def query_top_aggiudicatari(filters: dict = None, limit: int = 50) -> List[Dict]:
+    """Classifica aggiudicatari/fornitori per numero di gare vinte tra i bandi filtrati."""
+    filters = filters or {}
+    conn = get_conn()
+    where_sql, params = _build_where(filters)
+
+    rows = conn.execute(f"""
+        SELECT a.denominazione, a.codice_fiscale,
+               COUNT(*) as n_aggiudicazioni,
+               COALESCE(SUM(CAST(fb.importo_lotto AS REAL)), 0) as tot_importo
+        FROM aggiudicatari a
+        JOIN (SELECT cig, importo_lotto FROM bandi WHERE {where_sql}) fb ON a.cig = fb.cig
+        GROUP BY a.codice_fiscale, a.denominazione
+        ORDER BY n_aggiudicazioni DESC
+        LIMIT ?
+    """, params + [limit]).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_filtri_disponibili() -> dict:

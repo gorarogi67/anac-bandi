@@ -18,7 +18,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
 from database import (init_db, query_bandi, query_bandi_province_agg, query_bandi_charts,
                        query_albi_sa, upsert_albo_sa, get_filtri_disponibili, count_bandi,
-                       get_sync_log, query_aggiudicatari_partecipanti)
+                       get_sync_log, query_aggiudicatari_partecipanti, query_top_aggiudicatari)
 from config import PORT, KEYWORDS_DEFAULT, SYNC_SECRET
 import pandas as pd
 
@@ -152,6 +152,12 @@ def api_stats():
 def api_bando_dettaglio(cig):
     """Restituisce aggiudicatari e partecipanti per un CIG."""
     return jsonify(query_aggiudicatari_partecipanti(cig))
+
+
+@app.route("/api/top-aggiudicatari")
+def api_top_aggiudicatari():
+    filters = _parse_filters(request.args)
+    return jsonify(query_top_aggiudicatari(filters))
 
 
 @app.route("/api/sync-log")
