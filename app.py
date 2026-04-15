@@ -76,6 +76,7 @@ def _parse_filters(args):
         "esito": args.get("esito", ""),
         "provincia": args.get("provincia", ""),
         "tipo": args.get("tipo", ""),
+        "cf_aggiudicatario": args.get("cf_aggiudicatario", "").strip(),
     }
     return f
 
