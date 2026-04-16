@@ -571,8 +571,8 @@ def api_sync():
 # Init DB all'import (per gunicorn)
 init_db()
 
-# Avvia scheduler
-avvia_scheduler()
+# Avvia scheduler — DISABILITATO (server in USA, ANAC blocca IP datacenter)
+# avvia_scheduler()
 
 if __name__ == "__main__":
     tot = count_bandi()
