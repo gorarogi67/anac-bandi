@@ -710,8 +710,12 @@ function ldAggMap(){
     document.getElementById('aggMapLoading').style.display='none';
     aggMapCircles.forEach(c=>c.remove());aggMapCircles=[];
     const leg=document.getElementById('aggMapLegend');
-    leg.innerHTML='<div style="font-weight:700;color:#374151;margin-bottom:8px;font-size:12px">Top 10 Aggiudicatari</div>';
+    leg.innerHTML='<div style="font-weight:700;color:#374151;margin-bottom:8px;font-size:12px">Top 5 Aggiudicatari</div>';
     if(!data.length){leg.innerHTML+='<div style="color:#aaa;font-size:11px">Nessun dato disponibile</div>';return;}
+    // Calcola offset per province con più aggiudicatari (evita sovrapposizione)
+    const provSlots={};
+    data.forEach((agg,i)=>{(agg.province||[]).forEach(p=>{if(!p.lat||!p.lng)return;if(!provSlots[p.provincia])provSlots[p.provincia]=[];provSlots[p.provincia].push(i);});});
+    const R=0.14; // gradi di offset (~15km)
     data.forEach((agg,i)=>{
       const color=AGG_COLORS[i%AGG_COLORS.length];
       const nome=agg.denominazione||'—';
@@ -724,9 +728,12 @@ function ldAggMap(){
       row.appendChild(dot);row.appendChild(lbl);leg.appendChild(row);
       (agg.province||[]).forEach(p=>{
         if(!p.lat||!p.lng)return;
-        const r=Math.max(5,Math.min(22,4+Math.sqrt(p.n)*1.8));
-        const circle=L.circleMarker([p.lat,p.lng],{radius:r,fillColor:color,color:color,weight:1.5,fillOpacity:0.65,opacity:1}).addTo(aggMapObj);
-        circle.bindPopup(`<b style="color:${color}">${nome}</b><br>Provincia: <b>${p.provincia}</b><br>Gare vinte: <b>${p.n.toLocaleString('it')}</b><br>Importo: ${p.tot>0?fmtImp(p.tot):'n.d.'}`);
+        const slots=provSlots[p.provincia]||[i];
+        const n=slots.length,j=slots.indexOf(i);
+        let dLat=0,dLng=0;
+        if(n>1){const ang=(2*Math.PI*j/n)-Math.PI/2;dLat=R*Math.sin(ang);dLng=R*Math.cos(ang)*1.5;}
+        const circle=L.circleMarker([p.lat+dLat,p.lng+dLng],{radius:8,fillColor:color,color:'#fff',weight:1.5,fillOpacity:0.85,opacity:1}).addTo(aggMapObj);
+        circle.bindPopup(`<b style="color:${color}">${nome}</b><br>Provincia: <b>${p.provincia}</b><br>Gare vinte: <b>${p.n.toLocaleString('it')}</b>`);
         aggMapCircles.push(circle);
       });
     });
