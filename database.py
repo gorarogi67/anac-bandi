@@ -343,9 +343,11 @@ def query_bandi(filters: dict = None, limit=50, offset=0) -> Tuple[List[dict], i
     if sort_col not in safe_cols:
         sort_col = "data_pubblicazione"
 
+    numeric_cols = {"importo_lotto", "importo_complessivo_gara"}
+    order_expr = f"CAST(b.{sort_col} AS REAL)" if sort_col in numeric_cols else f"b.{sort_col}"
     rows = conn.execute(
         f"SELECT b.*, (SELECT denominazione FROM aggiudicatari WHERE cig=b.cig LIMIT 1) as aggiudicatario_nome "
-        f"FROM bandi b WHERE {where_sql} ORDER BY b.{sort_col} {sort_order} LIMIT ? OFFSET ?",
+        f"FROM bandi b WHERE {where_sql} ORDER BY {order_expr} {sort_order} LIMIT ? OFFSET ?",
         params + [limit, offset],
     ).fetchall()
 

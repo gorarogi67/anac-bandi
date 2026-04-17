@@ -308,10 +308,10 @@
   <table class="albi-table top-agg-table" style="width:100%">
     <thead><tr>
       <th style="width:36px">#</th>
-      <th>Aggiudicatario / Fornitore</th>
+      <th onclick="srtTopAgg('denominazione')" style="cursor:pointer">Aggiudicatario / Fornitore <span id="taH_denominazione"></span></th>
       <th>Codice Fiscale</th>
-      <th style="text-align:right">N° gare vinte</th>
-      <th style="text-align:right">Importo totale</th>
+      <th onclick="srtTopAgg('n_aggiudicazioni')" style="text-align:right;cursor:pointer">N° gare vinte <span id="taH_n_aggiudicazioni">▼</span></th>
+      <th onclick="srtTopAgg('tot_importo')" style="text-align:right;cursor:pointer">Importo totale <span id="taH_tot_importo"></span></th>
       <th style="width:40px"></th>
     </tr></thead>
     <tbody id="topAggTb"></tbody>
@@ -444,7 +444,32 @@ function cm(){document.getElementById('modal').style.display='none'}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cm()});
 
 // ── Albi Fornitori ──
-let topAggData=[];
+let topAggData=[],taSort='n_aggiudicazioni',taOrder='desc';
+function srtTopAgg(col){
+  if(taSort===col)taOrder=taOrder==='asc'?'desc':'asc';else{taSort=col;taOrder=col==='denominazione'?'asc':'desc';}
+  ['denominazione','n_aggiudicazioni','tot_importo'].forEach(c=>{
+    const el=document.getElementById('taH_'+c);
+    if(el)el.textContent=c===taSort?(taOrder==='asc'?'▲':'▼'):'';
+  });
+  renderTopAgg(topAggData);
+}
+function renderTopAgg(data){
+  const tb=document.getElementById('topAggTb');
+  if(!data||!data.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:#ccc">Nessun aggiudicatario trovato</td></tr>';return;}
+  const sorted=[...data].sort((a,b)=>{
+    let va=a[taSort]||0,vb=b[taSort]||0;
+    if(taSort==='denominazione'){va=(a.denominazione||'').toLowerCase();vb=(b.denominazione||'').toLowerCase();return taOrder==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
+    return taOrder==='asc'?va-vb:vb-va;
+  });
+  tb.innerHTML=sorted.map((r,i)=>{
+    const imp=r.tot_importo?'€'+parseFloat(r.tot_importo).toLocaleString('it',{minimumFractionDigits:2}):'—';
+    const cf=r.codice_fiscale||'';
+    const nome=(r.denominazione||'—').replace(/'/g,"&#39;");
+    const clickable=cf?`onclick="filtraPerAgg('${cf}','${nome}')" style="cursor:pointer;border-bottom:1px solid #f3f4f6" title="Clicca per filtrare le gare di questa azienda"`:`style="border-bottom:1px solid #f3f4f6"`;
+    const gemBtn=`<button onclick="event.stopPropagation();geminiResearch('${nome}','${cf}')" title="Ricerca approfondita su Gemini" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px;opacity:0.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7">🔍</button>`;
+    return`<tr ${clickable}><td style="text-align:center;color:#9ca3af;font-size:12px">${i+1}</td><td style="font-weight:600">${r.denominazione||'—'}</td><td style="font-family:monospace;font-size:11px;color:#6b7280">${cf||'—'}</td><td style="text-align:right;font-weight:700;color:#2563eb">${(r.n_aggiudicazioni||0).toLocaleString('it')}</td><td style="text-align:right;color:#059669">${imp}</td><td style="text-align:center">${gemBtn}</td></tr>`;
+  }).join('');
+}
 function toggleTopAgg(){
   topAggVisible=!topAggVisible;
   document.getElementById('topAggInner').style.display=topAggVisible?'block':'none';
@@ -459,16 +484,9 @@ function ldTopAgg(){
   fetch(`/api/top-aggiudicatari?${params}`).then(r=>r.json()).then(d=>{
     document.getElementById('topAggLoading').style.display='none';
     topAggData=d;
-    const tb=document.getElementById('topAggTb');
-    if(!d.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:#ccc">Nessun aggiudicatario trovato</td></tr>';return;}
-    tb.innerHTML=d.map((r,i)=>{
-      const imp=r.tot_importo?'€'+parseFloat(r.tot_importo).toLocaleString('it',{minimumFractionDigits:2}):'—';
-      const cf=r.codice_fiscale||'';
-      const nome=(r.denominazione||'—').replace(/'/g,"&#39;");
-      const clickable=cf?`onclick="filtraPerAgg('${cf}','${nome}')" style="cursor:pointer;border-bottom:1px solid #f3f4f6" title="Clicca per filtrare le gare di questa azienda"`:`style="border-bottom:1px solid #f3f4f6"`;
-      const gemBtn=`<button onclick="event.stopPropagation();geminiResearch('${nome}','${cf}')" title="Ricerca approfondita su Gemini" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px;opacity:0.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7">🔍</button>`;
-      return`<tr ${clickable}><td style="text-align:center;color:#9ca3af;font-size:12px">${i+1}</td><td style="font-weight:600">${r.denominazione||'—'}</td><td style="font-family:monospace;font-size:11px;color:#6b7280">${cf||'—'}</td><td style="text-align:right;font-weight:700;color:#2563eb">${(r.n_aggiudicazioni||0).toLocaleString('it')}</td><td style="text-align:right;color:#059669">${imp}</td><td style="text-align:center">${gemBtn}</td></tr>`;
-    }).join('');
+    taSort='n_aggiudicazioni';taOrder='desc';
+    ['denominazione','n_aggiudicazioni','tot_importo'].forEach(c=>{const el=document.getElementById('taH_'+c);if(el)el.textContent=c==='n_aggiudicazioni'?'▼':'';});
+    renderTopAgg(topAggData);
   }).catch(()=>{document.getElementById('topAggLoading').style.display='none';});
 }
 let albiVisible=false,albiData=[],alboFilter='TUTTI';
