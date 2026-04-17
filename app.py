@@ -18,7 +18,8 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
 from database import (init_db, query_bandi, query_bandi_province_agg, query_bandi_charts,
                        query_albi_sa, upsert_albo_sa, get_filtri_disponibili, count_bandi,
-                       get_sync_log, query_aggiudicatari_partecipanti, query_top_aggiudicatari)
+                       get_sync_log, query_aggiudicatari_partecipanti, query_top_aggiudicatari,
+                       query_top_aggiudicatari_province)
 from config import PORT, KEYWORDS_DEFAULT, SYNC_SECRET
 import pandas as pd
 
@@ -276,6 +277,21 @@ def api_mapdata():
             "lng": coords[1],
         })
     return jsonify(result)
+
+
+@app.route("/api/aggiudicatari-mapdata")
+def api_aggiudicatari_mapdata():
+    filters = _parse_filters(request.args)
+    data = query_top_aggiudicatari_province(filters, limit=10)
+    for agg in data:
+        enriched = []
+        for p in agg["province"]:
+            prov = (p["provincia"] or "").strip().upper()
+            coords = PROVINCE_COORDS.get(prov)
+            if coords:
+                enriched.append({**p, "lat": coords[0], "lng": coords[1]})
+        agg["province"] = enriched
+    return jsonify(data)
 
 
 @app.route("/api/reset-db")

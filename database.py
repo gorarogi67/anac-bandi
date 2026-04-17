@@ -510,6 +510,18 @@ def query_bandi_charts(filters: dict = None) -> Dict:
         GROUP BY cpv ORDER BY n DESC LIMIT 10
     """)
 
+    # Top 10 aggiudicatari
+    top_agg = conn.execute(f"""
+        SELECT a.denominazione, a.codice_fiscale,
+               COUNT(*) as n_aggiudicazioni,
+               COALESCE(SUM(CAST(fb.importo_lotto AS REAL)), 0) as tot_importo
+        FROM aggiudicatari a
+        JOIN (SELECT cig, importo_lotto FROM bandi WHERE {where_sql}) fb ON a.cig = fb.cig
+        GROUP BY a.codice_fiscale, a.denominazione
+        ORDER BY n_aggiudicazioni DESC
+        LIMIT 10
+    """, params).fetchall()
+
     # KPI sintetici
     kpi_row = conn.execute(f"""
         SELECT COUNT(*) as n,
@@ -538,6 +550,10 @@ def query_bandi_charts(filters: dict = None) -> Dict:
             "media": kpi_row[2] or 0,
             "sa_attive": kpi_row[3] or 0,
         },
+        "top_aggiudicatari": [
+            {"denominazione": r[0], "codice_fiscale": r[1], "n": r[2], "tot": r[3]}
+            for r in top_agg
+        ],
     }
 
 
@@ -752,6 +768,54 @@ def query_top_aggiudicatari(filters: dict = None, limit: int = 50) -> List[Dict]
     """, params + [limit]).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def query_top_aggiudicatari_province(filters: dict = None, limit: int = 10) -> List[Dict]:
+    """Top N aggiudicatari con breakdown per provincia (per la mappa)."""
+    filters = filters or {}
+    conn = get_conn()
+    where_sql, params = _build_where(filters)
+
+    rows = conn.execute(f"""
+        WITH top_cf AS (
+            SELECT a.codice_fiscale, a.denominazione,
+                   COUNT(*) AS n_tot,
+                   COALESCE(SUM(CAST(b.importo_lotto AS REAL)),0) AS tot_importo
+            FROM aggiudicatari a
+            JOIN bandi b ON a.cig = b.cig
+            WHERE {where_sql}
+              AND a.codice_fiscale IS NOT NULL AND a.codice_fiscale != ''
+            GROUP BY a.codice_fiscale, a.denominazione
+            ORDER BY n_tot DESC
+            LIMIT {limit}
+        )
+        SELECT tc.denominazione, tc.codice_fiscale, tc.n_tot, tc.tot_importo,
+               b2.provincia, COUNT(*) AS n_prov,
+               COALESCE(SUM(CAST(b2.importo_lotto AS REAL)),0) AS tot_prov
+        FROM top_cf tc
+        JOIN aggiudicatari a2 ON tc.codice_fiscale = a2.codice_fiscale
+        JOIN bandi b2 ON a2.cig = b2.cig
+        WHERE {where_sql}
+          AND b2.provincia IS NOT NULL AND b2.provincia != ''
+        GROUP BY tc.codice_fiscale, tc.denominazione, b2.provincia
+        ORDER BY tc.n_tot DESC, n_prov DESC
+    """, params + params).fetchall()
+    conn.close()
+
+    from collections import OrderedDict
+    agg_map: dict = OrderedDict()
+    for row in rows:
+        cf = row[1]
+        if cf not in agg_map:
+            agg_map[cf] = {
+                "denominazione": row[0],
+                "codice_fiscale": cf,
+                "n_aggiudicazioni": row[2],
+                "tot_importo": row[3],
+                "province": [],
+            }
+        agg_map[cf]["province"].append({"provincia": row[4], "n": row[5], "tot": row[6]})
+    return list(agg_map.values())
 
 
 def get_filtri_disponibili() -> dict:

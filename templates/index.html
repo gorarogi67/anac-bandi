@@ -211,6 +211,7 @@
       <button class="chart-tab" onclick="switchTab('procedure',this)">Procedure</button>
       <button class="chart-tab" onclick="switchTab('tendenze',this)">Tendenze</button>
       <button class="chart-tab" onclick="switchTab('topn',this)">Top N</button>
+      <button class="chart-tab" onclick="switchTab('aggiudicatari',this)">🏆 Aggiudicatari</button>
     </div>
 
     <!-- PANORAMICA -->
@@ -256,7 +257,23 @@
         <div class="chart-box"><h3>Top 10 stazioni appaltanti (n° gare)</h3><canvas id="cSA"></canvas></div>
       </div>
     </div>
+
+    <!-- AGGIUDICATARI -->
+    <div class="chart-panel" id="tab-aggiudicatari">
+      <div class="charts-grid">
+        <div class="chart-box"><h3>Top 10 aggiudicatari — N° gare vinte</h3><canvas id="cAggN"></canvas></div>
+        <div class="chart-box"><h3>Top 10 aggiudicatari — Importo totale</h3><canvas id="cAggImp"></canvas></div>
+      </div>
+    </div>
   </div>
+</div>
+</div>
+
+<div class="card" id="aggMapCard">
+<div class="map-toggle" onclick="toggleAggMap()"><span>🗺️ Mappa Top 10 Aggiudicatari per provincia</span><span class="map-toggle-arrow" id="aggMapArrow">▶</span></div>
+<div id="aggMapInner" style="display:none">
+  <div id="aggMapLoading" style="display:none;text-align:center;padding:24px;color:#888;font-size:13px"><span class="loader"></span> &nbsp;Caricamento in corso...</div>
+  <div style="position:relative"><div id="aggMapContainer" style="height:480px;border-radius:0 0 10px 10px"></div><div id="aggMapLegend" style="position:absolute;bottom:24px;right:10px;z-index:1000;background:rgba(255,255,255,.92);border-radius:8px;padding:10px 14px;font-size:12px;box-shadow:0 1px 4px rgba(0,0,0,.15);min-width:160px;max-width:220px"></div></div>
 </div>
 </div>
 
@@ -365,7 +382,7 @@ function rk(k){kws=kws.filter(x=>x!==k);rc();ld(1)}
 function loadPreset(){kws={{keywords_default|tojson}};rc();ld(1)}
 document.getElementById('kwInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addKw(e.target.value)}});
 function gp(){const p={keywords:kws.join(','),kw_mode:kwMode,q:document.getElementById('sQ').value,anni:[...selectedAnni].join(','),con_scadenza:conScadenza?'1':'',esito:document.getElementById('fE').value,provincia:document.getElementById('fP').value,tipo:document.getElementById('fT').value,sort:sc,order:so,page:pg,per_page:50};if(cfSaFilter){p.cf_sa=cfSaFilter;p.solo_ad='1';}if(aggFilter)p.cf_aggiudicatario=aggFilter;return p;}
-function ld(p){pg=p||1;const params=new URLSearchParams({...gp(),page:pg});document.getElementById('loading').style.display='block';document.getElementById('tb').innerHTML='';fetch(`/api/bandi?${params}`).then(r=>r.json()).then(d=>{document.getElementById('loading').style.display='none';document.getElementById('sF').textContent=d.total.toLocaleString('it');rr(d.records);rp(d);ldMap();ldCharts();ldAlbi();ldTopAgg()})}
+function ld(p){pg=p||1;const params=new URLSearchParams({...gp(),page:pg});document.getElementById('loading').style.display='block';document.getElementById('tb').innerHTML='';fetch(`/api/bandi?${params}`).then(r=>r.json()).then(d=>{document.getElementById('loading').style.display='none';document.getElementById('sF').textContent=d.total.toLocaleString('it');rr(d.records);rp(d);ldMap();ldCharts();ldAlbi();ldTopAgg();ldAggMap()})}
 function rr(rows){const tb=document.getElementById('tb');if(!rows.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#ccc">Nessun risultato</td></tr>';return}tb.innerHTML=rows.map(r=>{const imp=r.importo_lotto?'€'+parseFloat(r.importo_lotto).toLocaleString('it',{minimumFractionDigits:2}):'';const isScig=r.tipo==='smartcig';const rowBg=isScig?'background:#f5f3ff;':'';let b='';if(!r.esito)b='<span class="badge bg">In Corso</span>';else if(r.esito==='AGGIUDICATA')b='<span class="badge bb">Aggiudicata</span>';else b='<span class="badge bgr">'+((r.esito||'').substring(0,28))+'</span>';if(isScig)b+=' <span style="background:#e9d5ff;color:#6b21a8;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;vertical-align:middle">SMARTCIG</span>';const agNome=r.aggiudicatario_nome?`<span title="${(r.aggiudicatario_nome||'').replace(/"/g,'&quot;')}" style="font-size:11px;color:#374151">${(r.aggiudicatario_nome||'').substring(0,40)}${r.aggiudicatario_nome.length>40?'…':''}</span> <button onclick="event.stopPropagation();geminiResearch('${(r.aggiudicatario_nome||'').replace(/'/g,"\\'")}','')" title="Ricerca su Gemini" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0 2px;opacity:0.6" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">🔍</button>`:'';return`<tr onclick='sd(${JSON.stringify(r).replace(/'/g,"&#39;")})' style="${rowBg}"><td style="font-family:monospace;font-size:12px"><a href="https://dati.anticorruzione.it/superset/recaptcha/?cig=${r.cig||''}&next=dettaglio_cig" target="_blank" onclick="event.stopPropagation()" style="color:#2563eb;text-decoration:none;font-weight:600" title="Apri dettaglio su ANAC">${r.cig||''} ↗</a></td><td title="${(r.oggetto_lotto||'').replace(/"/g,'&quot;')}">${r.oggetto_lotto||''}</td><td>${r.denominazione_amministrazione_appaltante||''}</td><td style="text-align:right;font-weight:600">${imp}</td><td>${r.provincia||''}</td><td>${r.data_pubblicazione||''}</td><td>${r.data_scadenza_offerta||''}</td><td>${b}</td><td>${agNome}</td></tr>`}).join('')}
 function rp(d){const s=(d.page-1)*d.per_page+1,e=Math.min(d.page*d.per_page,d.total);document.getElementById('pgI').textContent=d.total?`${s}-${e} di ${d.total.toLocaleString('it')}`:'';let h='';if(d.page>1)h+=`<button class="pg" onclick="ld(${d.page-1})">← Prec</button>`;const f=Math.max(1,d.page-4),t=Math.min(d.pages,f+9);for(let i=f;i<=t;i++)h+=`<button class="pg ${i===d.page?'active':''}" onclick="ld(${i})">${i}</button>`;if(d.page<d.pages)h+=`<button class="pg" onclick="ld(${d.page+1})">Succ →</button>`;document.getElementById('pgB').innerHTML=h}
 function srt(c){if(sc===c)so=so==='asc'?'desc':'asc';else{sc=c;so='desc'}ld(1)}
@@ -597,6 +614,8 @@ function mkDoughnut(id,labels,data){
     options:{responsive:true,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:14}}}}
   });
 }
+const AGG_COLORS=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#64748b','#e91e63','#00bcd4'];
+function mkHBarAgg(id,labels,data,colors){destroyChart(id);chartInstances[id]=new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors.map(c=>c+'bb'),borderColor:colors,borderWidth:1}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true},y:{ticks:{font:{size:10}}}}}});}
 function fmtM(v){if(v>=1e9)return(v/1e9).toFixed(1)+'Mrd';if(v>=1e6)return(v/1e6).toFixed(1)+'M';if(v>=1e3)return(v/1e3).toFixed(0)+'K';return v.toFixed(0);}
 function mkLine(id,labels,data,label,color){
   destroyChart(id);
@@ -658,7 +677,60 @@ function ldCharts(){
     mkHBar('cProvince',prov.map(r=>r.provincia),prov.map(r=>r.n),'Gare','#059669');
     const sa=[...d.sa].reverse();
     mkHBar('cSA',sa.map(r=>r.sa.length>35?r.sa.substring(0,33)+'…':r.sa),sa.map(r=>r.n),'Gare','#7c3aed');
+
+    // ── Aggiudicatari ──
+    const tagg=(d.top_aggiudicatari||[]).slice().reverse();
+    const taggLabels=tagg.map((r,i)=>{const n=r.denominazione||'—';return n.length>35?n.substring(0,33)+'…':n;});
+    const taggColors=tagg.map((_,i)=>AGG_COLORS[(tagg.length-1-i)%AGG_COLORS.length]);
+    mkHBarAgg('cAggN',taggLabels,tagg.map(r=>r.n||0),taggColors);
+    mkHBarAgg('cAggImp',taggLabels,tagg.map(r=>r.tot||0),taggColors);
   });
+}
+
+// ── Mappa Aggiudicatari ──
+let aggMapObj=null,aggMapVisible=false,aggMapCircles=[];
+function toggleAggMap(){
+  aggMapVisible=!aggMapVisible;
+  document.getElementById('aggMapInner').style.display=aggMapVisible?'block':'none';
+  document.getElementById('aggMapArrow').textContent=aggMapVisible?'▲':'▶';
+  if(aggMapVisible){
+    if(!aggMapObj){
+      aggMapObj=L.map('aggMapContainer',{scrollWheelZoom:true}).setView([42.0,12.5],6);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:18}).addTo(aggMapObj);
+    }
+    setTimeout(()=>aggMapObj.invalidateSize(),50);
+    ldAggMap();
+  }
+}
+function ldAggMap(){
+  if(!aggMapVisible||!aggMapObj)return;
+  document.getElementById('aggMapLoading').style.display='block';
+  const params=new URLSearchParams(gp());
+  fetch('/api/aggiudicatari-mapdata?'+params).then(r=>r.json()).then(data=>{
+    document.getElementById('aggMapLoading').style.display='none';
+    aggMapCircles.forEach(c=>c.remove());aggMapCircles=[];
+    const leg=document.getElementById('aggMapLegend');
+    leg.innerHTML='<div style="font-weight:700;color:#374151;margin-bottom:8px;font-size:12px">Top 10 Aggiudicatari</div>';
+    if(!data.length){leg.innerHTML+='<div style="color:#aaa;font-size:11px">Nessun dato disponibile</div>';return;}
+    data.forEach((agg,i)=>{
+      const color=AGG_COLORS[i%AGG_COLORS.length];
+      const nome=agg.denominazione||'—';
+      const nomeShort=nome.length>26?nome.substring(0,24)+'…':nome;
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px';
+      const dot=document.createElement('div');
+      dot.style.cssText=`width:11px;height:11px;border-radius:50%;background:${color};border:1.5px solid ${color};flex-shrink:0`;
+      const lbl=document.createElement('span');lbl.textContent=nomeShort;lbl.title=nome;
+      row.appendChild(dot);row.appendChild(lbl);leg.appendChild(row);
+      (agg.province||[]).forEach(p=>{
+        if(!p.lat||!p.lng)return;
+        const r=Math.max(5,Math.min(22,4+Math.sqrt(p.n)*1.8));
+        const circle=L.circleMarker([p.lat,p.lng],{radius:r,fillColor:color,color:color,weight:1.5,fillOpacity:0.65,opacity:1}).addTo(aggMapObj);
+        circle.bindPopup(`<b style="color:${color}">${nome}</b><br>Provincia: <b>${p.provincia}</b><br>Gare vinte: <b>${p.n.toLocaleString('it')}</b><br>Importo: ${p.tot>0?fmtImp(p.tot):'n.d.'}`);
+        aggMapCircles.push(circle);
+      });
+    });
+  }).catch(()=>{document.getElementById('aggMapLoading').style.display='none';});
 }
 
 // ── Mappa ──
