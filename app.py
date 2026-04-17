@@ -282,7 +282,7 @@ def api_mapdata():
 @app.route("/api/aggiudicatari-mapdata")
 def api_aggiudicatari_mapdata():
     filters = _parse_filters(request.args)
-    data = query_top_aggiudicatari_province(filters, limit=5)
+    data = query_top_aggiudicatari_province(filters, limit=10)
     for agg in data:
         enriched = []
         for p in agg["province"]:

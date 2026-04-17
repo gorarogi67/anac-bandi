@@ -688,7 +688,7 @@ function ldCharts(){
 }
 
 // ── Mappa Aggiudicatari ──
-let aggMapObj=null,aggMapVisible=false,aggMapCircles=[];
+let aggMapObj=null,aggMapVisible=false,aggMapCircles=[],aggMapByAgg={},aggLayerOn={};
 function toggleAggMap(){
   aggMapVisible=!aggMapVisible;
   document.getElementById('aggMapInner').style.display=aggMapVisible?'block':'none';
@@ -702,30 +702,49 @@ function toggleAggMap(){
     ldAggMap();
   }
 }
+function toggleAggLayer(i){
+  aggLayerOn[i]=!aggLayerOn[i];
+  (aggMapByAgg[i]||[]).forEach(c=>{aggLayerOn[i]?c.addTo(aggMapObj):c.remove();});
+  const dot=document.getElementById('amd_'+i);
+  const lbl=document.getElementById('aml_'+i);
+  const btn=document.getElementById('amf_'+i);
+  if(dot){dot.style.opacity=aggLayerOn[i]?'1':'0.2';}
+  if(lbl){lbl.style.opacity=aggLayerOn[i]?'1':'0.35';lbl.style.textDecoration=aggLayerOn[i]?'none':'line-through';}
+  if(btn){btn.textContent=aggLayerOn[i]?'👁':'👁\u200D🗨';btn.title=aggLayerOn[i]?'Nascondi':'Mostra';}
+}
 function ldAggMap(){
   if(!aggMapVisible||!aggMapObj)return;
   document.getElementById('aggMapLoading').style.display='block';
   const params=new URLSearchParams(gp());
   fetch('/api/aggiudicatari-mapdata?'+params).then(r=>r.json()).then(data=>{
     document.getElementById('aggMapLoading').style.display='none';
-    aggMapCircles.forEach(c=>c.remove());aggMapCircles=[];
+    aggMapCircles.forEach(c=>c.remove());aggMapCircles=[];aggMapByAgg={};aggLayerOn={};
     const leg=document.getElementById('aggMapLegend');
-    leg.innerHTML='<div style="font-weight:700;color:#374151;margin-bottom:8px;font-size:12px">Top 5 Aggiudicatari</div>';
+    leg.innerHTML='<div style="font-weight:700;color:#374151;margin-bottom:8px;font-size:12px">Top 10 Aggiudicatari</div>';
     if(!data.length){leg.innerHTML+='<div style="color:#aaa;font-size:11px">Nessun dato disponibile</div>';return;}
-    // Calcola offset per province con più aggiudicatari (evita sovrapposizione)
+    // Indice posizione per-provincia (per offset)
     const provSlots={};
     data.forEach((agg,i)=>{(agg.province||[]).forEach(p=>{if(!p.lat||!p.lng)return;if(!provSlots[p.provincia])provSlots[p.provincia]=[];provSlots[p.provincia].push(i);});});
-    const R=0.14; // gradi di offset (~15km)
+    const R=0.14;
     data.forEach((agg,i)=>{
+      aggLayerOn[i]=true;aggMapByAgg[i]=[];
       const color=AGG_COLORS[i%AGG_COLORS.length];
       const nome=agg.denominazione||'—';
       const nomeShort=nome.length>26?nome.substring(0,24)+'…':nome;
+      // riga legenda
       const row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px';
+      row.style.cssText='display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:11px;cursor:pointer';
+      row.title='Clicca per mostrare/nascondere';
+      const btn=document.createElement('button');
+      btn.id='amf_'+i;btn.textContent='👁';btn.title='Nascondi';
+      btn.style.cssText='background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;flex-shrink:0';
+      btn.onclick=e=>{e.stopPropagation();toggleAggLayer(i);};
       const dot=document.createElement('div');
-      dot.style.cssText=`width:11px;height:11px;border-radius:50%;background:${color};border:1.5px solid ${color};flex-shrink:0`;
-      const lbl=document.createElement('span');lbl.textContent=nomeShort;lbl.title=nome;
-      row.appendChild(dot);row.appendChild(lbl);leg.appendChild(row);
+      dot.id='amd_'+i;dot.style.cssText=`width:11px;height:11px;border-radius:50%;background:${color};border:1.5px solid ${color};flex-shrink:0`;
+      const lbl=document.createElement('span');lbl.id='aml_'+i;lbl.textContent=nomeShort;lbl.title=nome;
+      row.onclick=()=>toggleAggLayer(i);
+      row.appendChild(btn);row.appendChild(dot);row.appendChild(lbl);leg.appendChild(row);
+      // cerchi sulla mappa
       (agg.province||[]).forEach(p=>{
         if(!p.lat||!p.lng)return;
         const slots=provSlots[p.provincia]||[i];
@@ -734,7 +753,7 @@ function ldAggMap(){
         if(n>1){const ang=(2*Math.PI*j/n)-Math.PI/2;dLat=R*Math.sin(ang);dLng=R*Math.cos(ang)*1.5;}
         const circle=L.circleMarker([p.lat+dLat,p.lng+dLng],{radius:8,fillColor:color,color:'#fff',weight:1.5,fillOpacity:0.85,opacity:1}).addTo(aggMapObj);
         circle.bindPopup(`<b style="color:${color}">${nome}</b><br>Provincia: <b>${p.provincia}</b><br>Gare vinte: <b>${p.n.toLocaleString('it')}</b>`);
-        aggMapCircles.push(circle);
+        aggMapByAgg[i].push(circle);aggMapCircles.push(circle);
       });
     });
   }).catch(()=>{document.getElementById('aggMapLoading').style.display='none';});
